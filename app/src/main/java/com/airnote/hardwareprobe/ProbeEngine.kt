@@ -12,6 +12,7 @@ import java.security.KeyStore
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.security.Signature
+import java.security.cert.X509Certificate
 import java.security.interfaces.ECPublicKey
 import java.security.spec.ECGenParameterSpec
 import java.security.spec.X509EncodedKeySpec
@@ -47,8 +48,17 @@ class ProbeEngine(private val context: Context) {
         var compressedPub = ""
         var certChainLength = 0
         var certChainBase64 = emptyList<String>()
+
+        var attestationParsed = false
+        var attestationParseError = ""
+        var attestationVersion: Int? = null
         var attestationSecurity = "UNPARSED"
-        var usageCountAttested = "UNPARSED"
+        var keyMintVersion: Int? = null
+        var keyMintSecurity = "UNPARSED"
+        var challengeMatches = false
+        var softwareUsageCount: Long? = null
+        var hardwareUsageCount: Long? = null
+
         var sign1 = "NOT_RUN"
         var sign1Verified = false
         var compactSig = ""
@@ -95,10 +105,24 @@ class ProbeEngine(private val context: Context) {
             certChainLength = chain.size
             certChainBase64 = chain.map { Base64.getEncoder().encodeToString(it.encoded) }
 
-            // We intentionally do not claim attested usageCountLimit until the Android attestation
-            // extension has been parsed. Runtime one-use behavior is still tested below.
-            attestationSecurity = if (certChainLength > 0) "CHAIN_PRESENT_NOT_PARSED" else "NO_CHAIN"
-            usageCountAttested = "INCONCLUSIVE_NOT_PARSED"
+            val leaf = chain.firstOrNull() as? X509Certificate
+            if (leaf != null) {
+                try {
+                    val parsed = AndroidAttestation.parse(leaf, challenge)
+                    attestationParsed = true
+                    attestationVersion = parsed.attestationVersion
+                    attestationSecurity = parsed.attestationSecurityLevel
+                    keyMintVersion = parsed.keyMintVersion
+                    keyMintSecurity = parsed.keyMintSecurityLevel
+                    challengeMatches = parsed.challengeMatches
+                    softwareUsageCount = parsed.softwareUsageCountLimit
+                    hardwareUsageCount = parsed.hardwareUsageCountLimit
+                } catch (t: Throwable) {
+                    attestationParseError = "${t::class.java.name}: ${t.message.orEmpty()}"
+                }
+            } else {
+                attestationParseError = "No X509 leaf certificate"
+            }
 
             val message1 = "AIRNOTE_GATE00_V1:$sessionId".toByteArray(Charsets.UTF_8)
             val signer1 = Signature.getInstance("SHA256withECDSA")
@@ -135,12 +159,22 @@ class ProbeEngine(private val context: Context) {
             fatalFailure = "${t::class.java.name}: ${t.message.orEmpty()}"
         }
 
-        val definitiveFailure = fatalFailure != null || !keyGenerated || privateExportable || !hardwareBacked || sign1 != "SUCCESS" || !sign1Verified || sign2 == "UNEXPECTED_SUCCESS"
-        val attestationConclusive = usageCountAttested == "1_HARDWARE_ENFORCED"
+        val hardwareUsageEnforced = attestationParsed && challengeMatches && hardwareUsageCount == 1L
+        val softwareOnlyUsageEnforced = attestationParsed && softwareUsageCount == 1L && hardwareUsageCount != 1L
+
+        val definitiveFailure = fatalFailure != null ||
+            !keyGenerated ||
+            privateExportable ||
+            !hardwareBacked ||
+            sign1 != "SUCCESS" ||
+            !sign1Verified ||
+            sign2 == "UNEXPECTED_SUCCESS" ||
+            (attestationParsed && !challengeMatches) ||
+            softwareOnlyUsageEnforced
 
         val verdict = when {
             definitiveFailure -> Verdict.FAIL
-            keyGenerated && hardwareBacked && sign1Verified && sign2 == "EXPECTED_FAILURE" && singleUseFeature && attestationConclusive -> Verdict.PASS
+            keyGenerated && hardwareBacked && sign1Verified && sign2 == "EXPECTED_FAILURE" && hardwareUsageEnforced -> Verdict.PASS
             else -> Verdict.INCONCLUSIVE
         }
 
@@ -172,9 +206,16 @@ class ProbeEngine(private val context: Context) {
             appendLine()
             appendLine("ATTESTATION")
             appendLine("Chain length: $certChainLength")
+            appendLine("Parsed: $attestationParsed")
+            appendLine("Parse error: $attestationParseError")
+            appendLine("Attestation version: ${attestationVersion ?: "UNKNOWN"}")
             appendLine("Attestation security level: $attestationSecurity")
-            appendLine("usageCountLimit: $usageCountAttested")
-            appendLine("Hardware enforced: ${if (attestationConclusive) "true" else "INCONCLUSIVE"}")
+            appendLine("KeyMint version: ${keyMintVersion ?: "UNKNOWN"}")
+            appendLine("KeyMint security level: $keyMintSecurity")
+            appendLine("Challenge matches: $challengeMatches")
+            appendLine("usageCountLimit softwareEnforced: ${softwareUsageCount ?: "ABSENT"}")
+            appendLine("usageCountLimit hardwareEnforced: ${hardwareUsageCount ?: "ABSENT"}")
+            appendLine("Hardware one-use enforced: $hardwareUsageEnforced")
             appendLine("Certificate chain SHA-256:")
             certChainBase64.forEachIndexed { index, b64 ->
                 val hash = MessageDigest.getInstance("SHA-256").digest(Base64.getDecoder().decode(b64)).hex()
@@ -199,8 +240,10 @@ class ProbeEngine(private val context: Context) {
             appendLine()
             appendLine("FINAL")
             appendLine(verdict.name)
-            if (verdict == Verdict.INCONCLUSIVE) {
-                appendLine("Reason: runtime behavior may be promising, but hardware-enforced usageCountLimit is not yet parsed from Android Key Attestation.")
+            when {
+                verdict == Verdict.PASS -> appendLine("Reason: usageCountLimit=1 is attested in the hardware-enforced authorization list and second use is rejected.")
+                softwareOnlyUsageEnforced -> appendLine("Reason: usageCountLimit=1 is software-enforced, not hardware-enforced. This does not satisfy AIRNOTE's offline double-spend threat model.")
+                verdict == Verdict.INCONCLUSIVE -> appendLine("Reason: hardware one-use enforcement could not be conclusively established from attestation.")
             }
         }
         return Result(verdict, report)
