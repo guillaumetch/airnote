@@ -1,6 +1,8 @@
 [workspace]
 members = [
     "programs/airnote_vault",
+]
+exclude = [
     "tests/airnote_vault_runtime",
 ]
 resolver = "2"
