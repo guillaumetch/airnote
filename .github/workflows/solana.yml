@@ -57,3 +57,6 @@ jobs:
 
       - name: Build Solana SBF program
         run: anchor build --skip-lint --ignore-keys
+
+      - name: LiteSVM runtime proof
+        run: cargo test -p airnote-vault --test vault_runtime -- --nocapture
