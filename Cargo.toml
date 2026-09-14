@@ -1,5 +1,8 @@
 [workspace]
-members = ["programs/airnote_vault"]
+members = [
+    "programs/airnote_vault",
+    "tests/airnote_vault_runtime",
+]
 resolver = "2"
 
 [profile.release]
