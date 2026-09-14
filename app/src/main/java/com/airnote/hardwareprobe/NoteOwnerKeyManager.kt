@@ -11,6 +11,7 @@ import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.MessageDigest
+import java.security.PrivateKey
 import java.security.SecureRandom
 import java.security.Signature
 import java.security.cert.Certificate
@@ -70,7 +71,7 @@ class NoteOwnerKeyManager(private val context: Context) {
         }
 
         val noteId = ByteArray(32).also { SecureRandom().nextBytes(it) }
-        val alias = "airnote-note-v1-${noteId.hex().take(16)}"
+        val alias = "airnote-note-v1-${noteId.hex()}"
         val challenge = sha256(ATTESTATION_CHALLENGE_DOMAIN + noteId)
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
 
@@ -131,8 +132,8 @@ class NoteOwnerKeyManager(private val context: Context) {
     /** Signs a canonical AIRNOTE transfer payload and returns compact low-S r||s. */
     fun signTransfer(alias: String, payload: ByteArray): ByteArray {
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        val privateKey = keyStore.getKey(alias, null)
-            ?: error("AIRNOTE note-owner key not found: $alias")
+        val privateKey = keyStore.getKey(alias, null) as? PrivateKey
+            ?: error("AIRNOTE note-owner private key not found: $alias")
         val signer = Signature.getInstance("SHA256withECDSA")
         signer.initSign(privateKey)
         signer.update(payload)
