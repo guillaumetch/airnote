@@ -1,10 +1,10 @@
-name: Android Gate 00
+name: Android AIRNOTE
 
 on:
   push:
-    branches: [ main, gate-00-hardware-probe ]
+    branches: [ main, gate-00-hardware-probe, gate-01-note-protocol ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, gate-00-hardware-probe ]
 
 jobs:
   build:
