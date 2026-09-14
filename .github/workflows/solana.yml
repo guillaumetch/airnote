@@ -23,3 +23,37 @@ jobs:
 
       - name: Cross-language protocol tests
         run: cargo test -p airnote-vault --lib
+
+  sbf-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Solana CLI 4.1.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -sSfL https://release.anza.xyz/v4.1.2/install | sh
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+
+      - name: Install pinned Anchor CLI 1.2.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL \
+            https://github.com/otter-sec/anchor/releases/download/v1.2.0/anchor-1.2.0-x86_64-unknown-linux-gnu \
+            -o /tmp/anchor
+          echo "0c9c41a3292c281cc6eadb78d6e1c8224d8324a34b0736a89d640fd314db05b7  /tmp/anchor" | sha256sum -c -
+          chmod +x /tmp/anchor
+          sudo mv /tmp/anchor /usr/local/bin/anchor
+
+      - name: Verify toolchains
+        run: |
+          solana --version
+          anchor --version
+
+      - name: Build Solana SBF program
+        run: anchor build --skip-lint --ignore-keys
