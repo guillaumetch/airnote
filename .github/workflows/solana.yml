@@ -1,8 +1,6 @@
 name: Solana AIRNOTE
 
 on:
-  push:
-    branches: [ gate-02-solana-vault ]
   pull_request:
     branches: [ gate-01-note-protocol ]
 
@@ -59,4 +57,4 @@ jobs:
         run: anchor build --skip-lint --ignore-keys
 
       - name: LiteSVM runtime proof
-        run: cargo test -p airnote-vault --test vault_runtime -- --nocapture
+        run: cargo test -p airnote-vault --test vault_runtime --features runtime-test -- --nocapture
