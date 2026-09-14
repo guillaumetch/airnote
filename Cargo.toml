@@ -4,6 +4,7 @@ members = [
 ]
 exclude = [
     "tests/airnote_vault_runtime",
+    "tools/airnote_attestor",
 ]
 resolver = "2"
 
