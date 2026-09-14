@@ -21,6 +21,7 @@ pub const STATUS_REDEEMED: u8 = 1;
 pub const STATUS_REFUNDED: u8 = 2;
 
 pub const MINT_DOMAIN: &[u8] = b"AIRNOTE_MINT_CORE_V1";
+pub const CERT_DOMAIN: &[u8] = b"AIRNOTE_MINT_CERT_V1";
 pub const TRANSFER_DOMAIN: &[u8] = b"AIRNOTE_TRANSFER_V1";
 
 pub const SECP256R1_PROGRAM_ID: Pubkey =
