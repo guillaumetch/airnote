@@ -4,11 +4,18 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+[dependencies]
+anchor-lang = "=1.2.0"
+litesvm = { version = "=0.14.0", features = ["precompiles"] }
+litesvm-token = "=0.14.0"
+solana-address = "=2.7.0"
+solana-instruction = "=3.5.1"
+solana-keypair = "=3.1.2"
+solana-signer = "=3.0.1"
+solana-transaction = "=4.1.5"
+
 [dev-dependencies]
 airnote-vault = { path = "../../programs/airnote_vault", features = ["no-entrypoint"] }
-anchor-lang = "=1.2.0"
 anchor-spl = "=1.2.0"
-anchor-litesvm = "=0.4.0"
-litesvm = { version = "=0.11.0", features = ["precompiles"] }
 p256 = { version = "=0.13.2", features = ["ecdsa"] }
 solana-instructions-sysvar = "=3.0.1"
