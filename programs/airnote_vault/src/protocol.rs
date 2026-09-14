@@ -2,7 +2,7 @@ use anchor_lang::{prelude::*, solana_program::instruction::Instruction};
 use solana_sha256_hasher::hash;
 
 use crate::{
-    constants::{MINT_DOMAIN, SECP256R1_PROGRAM_ID, TRANSFER_DOMAIN, VERSION},
+    constants::{CERT_DOMAIN, MINT_DOMAIN, SECP256R1_PROGRAM_ID, TRANSFER_DOMAIN, VERSION},
     errors::AirnoteError,
 };
 
@@ -18,6 +18,13 @@ pub struct MintCoreFields {
     pub expires_at_unix_s: u64,
     pub device_attestation_digest: [u8; 32],
     pub risk_tier: u8,
+}
+
+pub struct MintCertificateFields {
+    pub note_commitment: [u8; 32],
+    pub finalized_slot: u64,
+    pub mint_tx_signature: [u8; 64],
+    pub attestor_key_id: u32,
 }
 
 pub fn encode_mint_core(fields: &MintCoreFields) -> Vec<u8> {
@@ -40,6 +47,16 @@ pub fn encode_mint_core(fields: &MintCoreFields) -> Vec<u8> {
 
 pub fn note_commitment(fields: &MintCoreFields) -> [u8; 32] {
     hash(&encode_mint_core(fields)).to_bytes()
+}
+
+pub fn encode_mint_certificate_payload(fields: &MintCertificateFields) -> Vec<u8> {
+    let mut out = Vec::with_capacity(128);
+    out.extend_from_slice(CERT_DOMAIN);
+    out.extend_from_slice(&fields.note_commitment);
+    out.extend_from_slice(&fields.finalized_slot.to_le_bytes());
+    out.extend_from_slice(&fields.mint_tx_signature);
+    out.extend_from_slice(&fields.attestor_key_id.to_le_bytes());
+    out
 }
 
 pub fn encode_transfer_payload(
@@ -171,6 +188,23 @@ mod tests {
         assert_eq!(
             hex(&hash(&encoded).to_bytes()),
             "d6dfd317a4c51dde7d2b824fc09dbb8b6f9721efb9d6c9044f6a527c854ff650"
+        );
+    }
+
+    #[test]
+    fn mint_certificate_matches_kotlin_golden_vector() {
+        let mut mint_tx_signature = [0u8; 64];
+        mint_tx_signature.copy_from_slice(&range(0x00, 64));
+        let encoded = encode_mint_certificate_payload(&MintCertificateFields {
+            note_commitment: note_commitment(&fixture_core()),
+            finalized_slot: 250_000_000,
+            mint_tx_signature,
+            attestor_key_id: 7,
+        });
+        assert_eq!(encoded.len(), 128);
+        assert_eq!(
+            hex(&hash(&encoded).to_bytes()),
+            "31da2d818a0230418cbddda05a788452d8555dde8c94154bb4b323838f615272"
         );
     }
 
