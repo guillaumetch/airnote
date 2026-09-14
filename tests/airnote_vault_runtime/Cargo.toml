@@ -19,6 +19,7 @@ solana-rent = "=4.3.0"
 solana-signature = "=3.4.1"
 solana-signer = "=3.0.1"
 solana-transaction = "=4.1.6"
+solana-transaction-context = "=4.1.1"
 
 [dev-dependencies]
 airnote-vault = { path = "../../programs/airnote_vault", features = ["no-entrypoint"] }
