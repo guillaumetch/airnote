@@ -185,6 +185,7 @@ fn p256_instruction(signing_key: &SigningKey, public_key: &[u8; 33], message: &[
 
 fn redeem_instruction(
     fixture: &Fixture,
+    payer: Pubkey,
     note: Pubkey,
     vault: Pubkey,
     nonce: [u8; 32],
@@ -197,7 +198,7 @@ fn redeem_instruction(
     Instruction {
         program_id: ID,
         accounts: accounts::RedeemNote {
-            payer: fixture.payer.pubkey(),
+            payer,
             recipient: fixture.recipient.pubkey(),
             note,
             usdc_mint: fixture.mint.pubkey(),
@@ -218,11 +219,11 @@ fn redeem_instruction(
 }
 
 #[test]
-fn create_reject_mutation_redeem_replay_and_refund() {
+fn create_reject_mutation_redeem_replay_expiry_and_refund() {
     let mut f = setup();
     let (signing_key, owner_p256) = p256_key(7);
 
-    // Note A: mutation must fail, canonical redemption must succeed, replay must fail.
+    // Note A: mutation must fail, canonical redemption must succeed, state replay must fail.
     let (note_a, vault_a, state_a) = create_note(&mut f, [0x11; 32], 1_000_000, owner_p256, 3_600);
     let commitment_a = commitment(&state_a, note_a);
     let good_nonce = [0x22; 32];
@@ -237,7 +238,14 @@ fn create_reject_mutation_redeem_replay_and_refund() {
     let p256_a = p256_instruction(&signing_key, &owner_p256, &payload_a);
 
     // The precompile verifies a real signature, but redeem args ask for a different nonce.
-    let bad_redeem = redeem_instruction(&f, note_a, vault_a, bad_nonce, request_expiry);
+    let bad_redeem = redeem_instruction(
+        &f,
+        f.payer.pubkey(),
+        note_a,
+        vault_a,
+        bad_nonce,
+        request_expiry,
+    );
     f.ctx
         .execute_instructions(vec![p256_a.clone(), bad_redeem], &[&f.payer, &f.recipient])
         .unwrap()
@@ -246,9 +254,16 @@ fn create_reject_mutation_redeem_replay_and_refund() {
     assert_eq!(still_funded.status, STATUS_FUNDED);
     f.ctx.svm.assert_token_balance(&vault_a, 1_000_000);
 
-    let good_redeem = redeem_instruction(&f, note_a, vault_a, good_nonce, request_expiry);
+    let good_redeem = redeem_instruction(
+        &f,
+        f.payer.pubkey(),
+        note_a,
+        vault_a,
+        good_nonce,
+        request_expiry,
+    );
     f.ctx
-        .execute_instructions(vec![p256_a.clone(), good_redeem.clone()], &[&f.payer, &f.recipient])
+        .execute_instructions(vec![p256_a.clone(), good_redeem], &[&f.payer, &f.recipient])
         .unwrap()
         .assert_success();
     let redeemed: Note = f.ctx.get_account(&note_a).unwrap();
@@ -261,19 +276,95 @@ fn create_reject_mutation_redeem_replay_and_refund() {
     );
     f.ctx.svm.assert_token_balance(&recipient_ata, 1_000_000);
 
-    // A second redemption of the same note cannot release value again.
+    // Use a fresh fee payer so this is a distinct transaction and must fail on AIRNOTE state,
+    // not merely LiteSVM duplicate-transaction detection.
+    let replay_payer = f.ctx.svm.create_funded_account(10_000_000_000).unwrap();
+    let replay_redeem = redeem_instruction(
+        &f,
+        replay_payer.pubkey(),
+        note_a,
+        vault_a,
+        good_nonce,
+        request_expiry,
+    );
     f.ctx
-        .execute_instructions(vec![p256_a, good_redeem], &[&f.payer, &f.recipient])
+        .execute_instructions(
+            vec![p256_a, replay_redeem],
+            &[&replay_payer, &f.recipient],
+        )
         .unwrap()
         .assert_failure();
+    let replay_state: Note = f.ctx.get_account(&note_a).unwrap();
+    assert_eq!(replay_state.status, STATUS_REDEEMED);
     f.ctx.svm.assert_token_balance(&recipient_ata, 1_000_000);
 
-    // Note B: once expired, redemption fails and only the original funder can refund.
-    let (_signing_key_b, owner_b) = p256_key(9);
+    // Note B: a signed recipient request expires before the note itself.
+    let (signing_key_b, owner_b) = p256_key(9);
     let (note_b, vault_b, state_b) = create_note(&mut f, [0x44; 32], 5_000_000, owner_b, 60);
+    let commitment_b = commitment(&state_b, note_b);
+    let nonce_b = [0x55; 32];
+    let request_expiry_b = state_b.issued_at_unix_s + 30;
+    let payload_b = encode_transfer_payload(
+        &commitment_b,
+        &f.recipient.pubkey(),
+        &nonce_b,
+        request_expiry_b,
+    );
+    let p256_b = p256_instruction(&signing_key_b, &owner_b, &payload_b);
+
     let mut clock = f.ctx.svm.get_sysvar::<Clock>();
+    clock.unix_timestamp = i64::try_from(request_expiry_b + 1).unwrap();
+    f.ctx.svm.set_sysvar::<Clock>(&clock);
+    assert!(request_expiry_b + 1 < state_b.expires_at_unix_s);
+
+    let expired_request_redeem = redeem_instruction(
+        &f,
+        f.payer.pubkey(),
+        note_b,
+        vault_b,
+        nonce_b,
+        request_expiry_b,
+    );
+    f.ctx
+        .execute_instructions(
+            vec![p256_b, expired_request_redeem],
+            &[&f.payer, &f.recipient],
+        )
+        .unwrap()
+        .assert_failure();
+    let request_expired_state: Note = f.ctx.get_account(&note_b).unwrap();
+    assert_eq!(request_expired_state.status, STATUS_FUNDED);
+    f.ctx.svm.assert_token_balance(&vault_b, 5_000_000);
+
+    // Once the note expires, a different wallet still cannot take the refund.
     clock.unix_timestamp = i64::try_from(state_b.expires_at_unix_s + 1).unwrap();
     f.ctx.svm.set_sysvar::<Clock>(&clock);
+    let attacker = f.ctx.svm.create_funded_account(10_000_000_000).unwrap();
+    let attacker_ata = f
+        .ctx
+        .svm
+        .create_associated_token_account(&f.mint.pubkey(), &attacker)
+        .unwrap();
+    let unauthorized_refund = Instruction {
+        program_id: ID,
+        accounts: accounts::RefundNote {
+            funder: attacker.pubkey(),
+            note: note_b,
+            usdc_mint: f.mint.pubkey(),
+            vault_token: vault_b,
+            funder_token: attacker_ata,
+            token_program: anchor_spl::token::ID,
+        }
+        .to_account_metas(None),
+        data: instruction::RefundNote {}.data(),
+    };
+    f.ctx
+        .execute_instruction(unauthorized_refund, &[&attacker])
+        .unwrap()
+        .assert_failure();
+    let after_attack: Note = f.ctx.get_account(&note_b).unwrap();
+    assert_eq!(after_attack.status, STATUS_FUNDED);
+    f.ctx.svm.assert_token_balance(&vault_b, 5_000_000);
 
     let refund_ix = Instruction {
         program_id: ID,
