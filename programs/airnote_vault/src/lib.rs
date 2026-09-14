@@ -77,11 +77,12 @@ pub mod airnote_vault {
             authority: ctx.accounts.funder.to_account_info(),
         };
         token::transfer_checked(
-            CpiContext::new(ctx.accounts.token_program.to_account_info(), transfer_accounts),
+            CpiContext::new(ctx.accounts.token_program.key(), transfer_accounts),
             args.amount_base_units,
             USDC_DECIMALS,
         )?;
 
+        let note_key = ctx.accounts.note.key();
         let note = &mut ctx.accounts.note;
         note.funder = ctx.accounts.funder.key();
         note.network = ctx.accounts.config.network;
@@ -99,10 +100,10 @@ pub mod airnote_vault {
         note.bump = ctx.bumps.note;
         note.vault_bump = ctx.bumps.vault_token;
 
-        let commitment = commitment_for_note(note, ctx.accounts.note.key());
+        let commitment = commitment_for_note(note, note_key);
         emit!(NoteCreated {
             note_id: note.note_id,
-            note_account: ctx.accounts.note.key(),
+            note_account: note_key,
             funder: note.funder,
             amount_base_units: note.amount_base_units,
             issued_at_unix_s: note.issued_at_unix_s,
@@ -173,7 +174,7 @@ pub mod airnote_vault {
         };
         token::transfer_checked(
             CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
+                ctx.accounts.token_program.key(),
                 transfer_accounts,
                 signer,
             ),
@@ -220,7 +221,7 @@ pub mod airnote_vault {
         };
         token::transfer_checked(
             CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
+                ctx.accounts.token_program.key(),
                 transfer_accounts,
                 signer,
             ),
