@@ -30,7 +30,7 @@ class ProbeEngine(private val context: Context) {
         val report: String
     )
 
-    fun run(forceStrongBox: Boolean = false): Result {
+    fun run(forceStrongBox: Boolean = true): Result {
         val pm = context.packageManager
         val singleUseFeature = pm.hasSystemFeature(PackageManager.FEATURE_KEYSTORE_SINGLE_USE_KEY)
         val limitedUseFeature = pm.hasSystemFeature(PackageManager.FEATURE_KEYSTORE_LIMITED_USE_KEY)
