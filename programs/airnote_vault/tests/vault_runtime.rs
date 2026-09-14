@@ -36,7 +36,6 @@ struct Fixture {
 
 fn setup() -> Fixture {
     let mut ctx = AnchorLiteSVM::build_with_program(ID, AIRNOTE_SO);
-    ctx.svm.set_precompiles();
 
     let admin = ctx.svm.create_funded_account(10_000_000_000).unwrap();
     let funder = ctx.svm.create_funded_account(10_000_000_000).unwrap();
