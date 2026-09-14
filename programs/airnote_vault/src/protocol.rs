@@ -83,12 +83,23 @@ pub fn assert_p256_verification(
     let message_data_size = read_u16(data, 12)?;
     let message_instruction_index = read_u16(data, 14)?;
 
-    // AIRNOTE intentionally supports only a self-contained precompile instruction.
-    // u16::MAX tells the precompile to read signature/key/message from its own data.
+    // AIRNOTE accepts one exact self-contained layout only:
+    // 16-byte header | 64-byte compact signature | 33-byte compressed P-256 key | message.
+    // u16::MAX tells the precompile to read signature/key/message from this same instruction.
+    let expected_message_size = u16::try_from(expected_message.len())
+        .map_err(|_| error!(AirnoteError::UnsupportedP256Layout))?;
+    let expected_data_len = 113usize
+        .checked_add(expected_message.len())
+        .ok_or_else(|| error!(AirnoteError::MalformedP256Instruction))?;
     require!(
         signature_instruction_index == u16::MAX
             && public_key_instruction_index == u16::MAX
-            && message_instruction_index == u16::MAX,
+            && message_instruction_index == u16::MAX
+            && signature_offset == 16
+            && public_key_offset == 80
+            && message_data_offset == 113
+            && message_data_size == expected_message_size
+            && data.len() == expected_data_len,
         AirnoteError::UnsupportedP256Layout
     );
 
@@ -198,6 +209,30 @@ mod tests {
         let mut changed = message.clone();
         *changed.last_mut().unwrap() ^= 1;
         assert!(assert_p256_verification(&ix, &owner, &changed).is_err());
+    }
+
+    #[test]
+    fn noncanonical_offsets_are_rejected() {
+        let owner = fixture_core().owner_p256_compressed;
+        let commitment = note_commitment(&fixture_core());
+        let wallet = Pubkey::new_from_array(array32(0xc0));
+        let nonce = array32(0xe0);
+        let message = encode_transfer_payload(&commitment, &wallet, &nonce, 1_700_000_300);
+        let mut ix = synthetic_p256_ix(&owner, &message);
+        ix.data[2..4].copy_from_slice(&17u16.to_le_bytes());
+        assert!(assert_p256_verification(&ix, &owner, &message).is_err());
+    }
+
+    #[test]
+    fn trailing_bytes_are_rejected() {
+        let owner = fixture_core().owner_p256_compressed;
+        let commitment = note_commitment(&fixture_core());
+        let wallet = Pubkey::new_from_array(array32(0xc0));
+        let nonce = array32(0xe0);
+        let message = encode_transfer_payload(&commitment, &wallet, &nonce, 1_700_000_300);
+        let mut ix = synthetic_p256_ix(&owner, &message);
+        ix.data.push(0);
+        assert!(assert_p256_verification(&ix, &owner, &message).is_err());
     }
 
     fn synthetic_p256_ix(owner: &[u8; 33], message: &[u8]) -> Instruction {
