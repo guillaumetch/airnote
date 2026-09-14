@@ -22,6 +22,12 @@ jobs:
       - name: Cross-language protocol tests
         run: cargo test -p airnote-vault --lib
 
+      - name: Check isolated LiteSVM harness
+        run: |
+          cargo check \
+            --manifest-path tests/airnote_vault_runtime/Cargo.toml \
+            --lib
+
   sbf-build:
     runs-on: ubuntu-latest
     steps:
