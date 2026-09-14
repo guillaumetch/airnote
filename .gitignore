@@ -13,3 +13,7 @@ target/
 .anchor/
 .test-ledger/
 *.log
+
+# AIRNOTE attestor private material — never commit real issuer seeds.
+*.attestor-seed
+attestor-seed.hex
