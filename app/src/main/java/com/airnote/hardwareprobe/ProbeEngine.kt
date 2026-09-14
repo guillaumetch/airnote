@@ -6,6 +6,7 @@ import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyInfo
 import android.security.keystore.KeyProperties
+import android.security.keystore.StrongBoxUnavailableException
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.KeyStore
@@ -29,13 +30,13 @@ class ProbeEngine(private val context: Context) {
         val report: String
     )
 
-    fun run(): Result {
+    fun run(forceStrongBox: Boolean = false): Result {
         val pm = context.packageManager
         val singleUseFeature = pm.hasSystemFeature(PackageManager.FEATURE_KEYSTORE_SINGLE_USE_KEY)
         val limitedUseFeature = pm.hasSystemFeature(PackageManager.FEATURE_KEYSTORE_LIMITED_USE_KEY)
         val strongBoxFeature = pm.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)
 
-        val alias = "airnote-gate00-${UUID.randomUUID()}"
+        val alias = "airnote-gate00-${if (forceStrongBox) "strongbox" else "default"}-${UUID.randomUUID()}"
         val challenge = ByteArray(32).also { SecureRandom().nextBytes(it) }
         val sessionId = UUID.randomUUID().toString()
 
@@ -69,14 +70,20 @@ class ProbeEngine(private val context: Context) {
         var fatalFailure: String? = null
 
         try {
+            if (forceStrongBox && !strongBoxFeature) {
+                throw StrongBoxUnavailableException("FEATURE_STRONGBOX_KEYSTORE not present")
+            }
+
             val generator = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore")
-            val spec = KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_SIGN)
+            val builder = KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_SIGN)
                 .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
                 .setDigests(KeyProperties.DIGEST_SHA256)
                 .setMaxUsageCount(1)
                 .setAttestationChallenge(challenge)
-                .build()
-            generator.initialize(spec)
+
+            if (forceStrongBox) builder.setIsStrongBoxBacked(true)
+
+            generator.initialize(builder.build())
             val pair = generator.generateKeyPair()
             keyGenerated = true
 
@@ -181,6 +188,9 @@ class ProbeEngine(private val context: Context) {
         val report = buildString {
             appendLine("AIRNOTE — SEEKER HARDWARE GATE 00")
             appendLine()
+            appendLine("PROBE MODE")
+            appendLine(if (forceStrongBox) "STRONGBOX_REQUESTED" else "DEFAULT_KEYSTORE")
+            appendLine()
             appendLine("TIMESTAMP")
             appendLine(Instant.now().toString())
             appendLine()
@@ -200,6 +210,7 @@ class ProbeEngine(private val context: Context) {
             appendLine("Algorithm: EC")
             appendLine("Curve: secp256r1")
             appendLine("Requested maxUsageCount: 1")
+            appendLine("Requested StrongBox: $forceStrongBox")
             appendLine("Security level: $securityLevel")
             appendLine("Hardware backed: $hardwareBacked")
             appendLine("Public key compressed: $compressedPub")
