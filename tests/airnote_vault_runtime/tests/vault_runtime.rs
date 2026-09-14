@@ -9,11 +9,11 @@ use airnote_vault::{
     state::Note,
     CreateNoteArgs, ID,
 };
+use airnote_vault_runtime::{AnchorLiteSVM, Instruction};
 use anchor_lang::{
     prelude::{Clock, Pubkey},
     InstructionData, ToAccountMetas,
 };
-use anchor_litesvm::{AnchorLiteSVM, AssertionHelpers, Instruction, Signer, TestHelpers};
 use p256::ecdsa::{signature::Signer as P256Signer, Signature, SigningKey};
 
 const AIRNOTE_SO: &[u8] = include_bytes!(concat!(
@@ -22,12 +22,12 @@ const AIRNOTE_SO: &[u8] = include_bytes!(concat!(
 ));
 
 struct Fixture {
-    ctx: anchor_litesvm::AnchorContext,
-    admin: anchor_litesvm::Keypair,
-    funder: anchor_litesvm::Keypair,
-    payer: anchor_litesvm::Keypair,
-    recipient: anchor_litesvm::Keypair,
-    mint: anchor_litesvm::Keypair,
+    ctx: airnote_vault_runtime::AnchorContext,
+    admin: airnote_vault_runtime::Keypair,
+    funder: airnote_vault_runtime::Keypair,
+    payer: airnote_vault_runtime::Keypair,
+    recipient: airnote_vault_runtime::Keypair,
+    mint: airnote_vault_runtime::MintAddress,
     funder_ata: Pubkey,
     config: Pubkey,
 }
