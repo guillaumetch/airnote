@@ -30,6 +30,14 @@ jobs:
       - name: Finalization observer tests
         run: python3 -m unittest tools/test_observe_finalized_note.py
 
+      - name: Devnet helper checks
+        run: |
+          node --check tools/devnet/airnote-devnet.mjs
+          bash -n tools/devnet/bootstrap-program.sh
+          bash -n tools/devnet/certify-airnote.sh
+          npm install --prefix tools/devnet --ignore-scripts --no-audit --no-fund
+          node tools/devnet/airnote-devnet.mjs help >/dev/null
+
       - name: Check isolated LiteSVM harness
         run: |
           cargo check \
