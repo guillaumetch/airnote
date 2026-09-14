@@ -2,7 +2,7 @@ name: Solana AIRNOTE
 
 on:
   pull_request:
-    branches: [ gate-01-note-protocol ]
+    branches: [ gate-01-note-protocol, gate-02-solana-vault ]
 
 jobs:
   rust-tests:
@@ -21,6 +21,12 @@ jobs:
 
       - name: Cross-language protocol tests
         run: cargo test -p airnote-vault --lib
+
+      - name: Mint attestor tests
+        run: |
+          cargo test \
+            --manifest-path tools/airnote_attestor/Cargo.toml \
+            --lib
 
       - name: Check isolated LiteSVM harness
         run: |
