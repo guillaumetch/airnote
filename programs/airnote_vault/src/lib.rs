@@ -126,7 +126,8 @@ pub mod airnote_vault {
         require!(now < note.expires_at_unix_s, AirnoteError::NoteExpired);
         require!(
             request_expires_at_unix_s >= note.issued_at_unix_s
-                && request_expires_at_unix_s <= note.expires_at_unix_s,
+                && request_expires_at_unix_s <= note.expires_at_unix_s
+                && now <= request_expires_at_unix_s,
             AirnoteError::InvalidRequestExpiry
         );
         require!(
