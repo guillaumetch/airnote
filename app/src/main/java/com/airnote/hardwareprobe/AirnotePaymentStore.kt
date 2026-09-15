@@ -5,7 +5,8 @@ import android.util.Base64
 import org.json.JSONObject
 
 class AirnotePaymentStore(context: Context) {
-    private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     fun all(): List<AirnotePayment> = prefs.all.entries
         .asSequence()
@@ -37,6 +38,8 @@ class AirnotePaymentStore(context: Context) {
         )
         val pending = PaymentLifecycle.transition(accepted, PaymentStatus.PENDING, createdAtUnixSeconds)
         save(pending)
+        // If the receiver is offline this waits for connectivity, then surfaces "ready to settle".
+        AirnoteReconciliationScheduler.enqueue(appContext)
         return pending
     }
 
@@ -50,8 +53,8 @@ class AirnotePaymentStore(context: Context) {
     /**
      * Persist the Solana signature before waiting for finalization.
      *
-     * This is the local idempotency fence for Gate 09: after the wallet reports submission, an
-     * app restart or RPC timeout reconciles this exact signature instead of constructing a fresh
+     * This is the local idempotency fence: after the wallet reports submission, an app restart,
+     * process death, or RPC timeout reconciles this exact signature instead of constructing a fresh
      * redemption transaction.
      */
     fun markSubmitted(
@@ -69,6 +72,8 @@ class AirnotePaymentStore(context: Context) {
         }
         val submitted = settling.copy(settlementSignature = signature, errorCode = null)
         save(submitted)
+        // Persisted WorkManager job survives process death and reconciles this exact signature.
+        AirnoteReconciliationScheduler.enqueue(appContext)
         return submitted
     }
 
@@ -100,6 +105,7 @@ class AirnotePaymentStore(context: Context) {
         val failed = PaymentLifecycle.transition(settling, PaymentStatus.FAILED_RETRYABLE, nowUnixSeconds)
             .copy(errorCode = errorCode)
         save(failed)
+        if (failed.settlementSignature != null) AirnoteReconciliationScheduler.enqueue(appContext)
         return failed
     }
 
@@ -124,6 +130,7 @@ class AirnotePaymentStore(context: Context) {
     fun expireDue(nowUnixSeconds: Long = System.currentTimeMillis() / 1000L) {
         all().filter {
             it.status !in setOf(PaymentStatus.SETTLED, PaymentStatus.REJECTED, PaymentStatus.EXPIRED) &&
+                !AirnoteReconciliationPolicy.shouldDeferLocalExpiry(it) &&
                 nowUnixSeconds >= it.expiresAtUnixSeconds
         }.forEach { payment ->
             if (PaymentLifecycle.canTransition(payment.status, PaymentStatus.EXPIRED)) {
