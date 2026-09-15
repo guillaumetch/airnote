@@ -1,10 +1,9 @@
 package com.airnote.hardwareprobe
 
 import com.airnote.protocol.AirnoteProtocol
+import com.airnote.protocol.Base58
 import com.airnote.protocol.Gate04Wire
-import com.solana.programs.AssociatedTokenProgram
 import com.solana.programs.SystemProgram
-import com.solana.programs.TokenProgram
 import com.solana.publickey.ProgramDerivedAddress
 import com.solana.publickey.SolanaPublicKey
 import com.solana.transaction.AccountMeta
@@ -47,7 +46,10 @@ object AirnoteSettlementBuilder {
         val recipient = SolanaPublicKey(request.recipientSolanaWallet)
 
         if (!recipient.bytes.contentEquals(authorizedWalletPublicKey)) {
-            throw WalletMismatchException(recipient.base58(), SolanaPublicKey(authorizedWalletPublicKey).base58())
+            throw WalletMismatchException(
+                Base58.encode(recipient.bytes),
+                Base58.encode(authorizedWalletPublicKey)
+            )
         }
         require(core.network == AirnoteProtocol.Network.DEVNET) { "Gate 09 currently settles devnet Airnotes only" }
 
@@ -68,20 +70,22 @@ object AirnoteSettlementBuilder {
             programId
         ).getOrThrow()
         require(note.bytes.contentEquals(noteAccount.bytes)) {
-            "transfer note account ${noteAccount.base58()} does not match derived PDA ${note.base58()}"
+            "transfer note account ${Base58.encode(noteAccount.bytes)} does not match derived PDA ${Base58.encode(note.bytes)}"
         }
         val vault = ProgramDerivedAddress.find(
             listOf(VAULT_SEED, core.noteId),
             programId
         ).getOrThrow()
         val recipientToken = ProgramDerivedAddress.find(
-            listOf(recipient.bytes, TokenProgram.PROGRAM_ID.bytes, usdcMint.bytes),
-            AssociatedTokenProgram.PROGRAM_ID
+            listOf(recipient.bytes, TOKEN_PROGRAM_ID.bytes, usdcMint.bytes),
+            ASSOCIATED_TOKEN_PROGRAM_ID
         ).getOrThrow()
 
-        val owner = rpc.accountOwner(note.base58())
-            ?: throw NoteUnavailableException("AIRNOTE note account does not exist: ${note.base58()}")
-        require(owner == programId.base58()) { "AIRNOTE note account is owned by the wrong program" }
+        val noteAddress = Base58.encode(note.bytes)
+        val programAddress = Base58.encode(programId.bytes)
+        val owner = rpc.accountOwner(noteAddress)
+            ?: throw NoteUnavailableException("AIRNOTE note account does not exist: $noteAddress")
+        require(owner == programAddress) { "AIRNOTE note account is owned by the wrong program" }
 
         val chainTime = rpc.finalizedChainTimeSeconds()
         if (chainTime >= core.expiresAtUnixSeconds) {
@@ -104,23 +108,24 @@ object AirnoteSettlementBuilder {
         val redeemInstruction = TransactionInstruction(
             programId,
             listOf(
-                // Recipient is also fee payer in Gate 09, matching the default Gate 05 CLI path.
+                // Same key is both fee payer and recipient signer, matching Gate 05 CLI default.
                 AccountMeta(recipient, true, true),
                 AccountMeta(recipient, true, false),
                 AccountMeta(note, false, true),
                 AccountMeta(usdcMint, false, false),
                 AccountMeta(vault, false, true),
                 AccountMeta(recipientToken, false, true),
-                AccountMeta(TokenProgram.PROGRAM_ID, false, false),
-                AccountMeta(AssociatedTokenProgram.PROGRAM_ID, false, false),
+                AccountMeta(TOKEN_PROGRAM_ID, false, false),
+                AccountMeta(ASSOCIATED_TOKEN_PROGRAM_ID, false, false),
                 AccountMeta(SystemProgram.PROGRAM_ID, false, false),
                 AccountMeta(INSTRUCTIONS_SYSVAR, false, false)
             ),
             redeemInstructionData(request.recipientNonce, request.requestExpiresAtUnixSeconds)
         )
 
+        // web3-solana 0.2.2 selects the first writable signer as the legacy fee payer. The only
+        // writable signer here is `recipient`, so this serializes the same fee-payer choice as Gate 05.
         val unsigned = Message.Builder()
-            .addFeePayer(recipient)
             .setRecentBlockhash(latest.blockhash)
             .addInstruction(verifyInstruction)
             .addInstruction(redeemInstruction)
@@ -195,6 +200,8 @@ object AirnoteSettlementBuilder {
     private val VAULT_SEED = "vault".toByteArray(Charsets.UTF_8)
     private val ALLOWED_AMOUNTS = setOf(1_000_000L, 5_000_000L, 10_000_000L)
     private val DEVNET_USDC = SolanaPublicKey.from("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU")
+    private val TOKEN_PROGRAM_ID = SolanaPublicKey.from("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+    private val ASSOCIATED_TOKEN_PROGRAM_ID = SolanaPublicKey.from("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL")
     private val SECP256R1_PROGRAM_ID = SolanaPublicKey.from("Secp256r1SigVerify1111111111111111111111111")
     private val INSTRUCTIONS_SYSVAR = SolanaPublicKey.from("Sysvar1nstructions1111111111111111111111111")
 }
