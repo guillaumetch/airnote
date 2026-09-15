@@ -12,6 +12,7 @@ class AirnoteReconciliationWorker(
     override suspend fun doWork(): Result {
         val store = AirnotePaymentStore(applicationContext)
         val rpc = AirnoteSolanaRpc()
+        val journal = AirnoteProofJournal(applicationContext)
         val now = System.currentTimeMillis() / 1000L
         var hasPendingSubmittedTransaction = false
         var hadRpcFailure = false
@@ -25,12 +26,21 @@ class AirnoteReconciliationWorker(
                 when (observation.state) {
                     AirnoteSolanaRpc.SignatureState.FINALIZED -> {
                         val settled = store.reconcileFinalized(payment.id, signature, now)
+                        runCatching {
+                            journal.record(
+                                type = AirnoteProofEventType.SETTLEMENT_FINALIZED_BACKGROUND,
+                                paymentId = payment.id,
+                                transactionSignature = signature,
+                                detail = "WorkManager observed finalized Solana settlement; slot=${observation.slot ?: -1}"
+                            )
+                        }
                         AirnoteNotifications.notifySettled(applicationContext, settled)
                     }
 
                     AirnoteSolanaRpc.SignatureState.FAILED -> {
                         handleDefinitiveFailure(
                             store = store,
+                            journal = journal,
                             payment = payment,
                             signature = signature,
                             now = now,
@@ -52,6 +62,7 @@ class AirnoteReconciliationWorker(
                             ) {
                                 handleDefinitiveFailure(
                                     store = store,
+                                    journal = journal,
                                     payment = payment,
                                     signature = signature,
                                     now = now,
@@ -75,7 +86,16 @@ class AirnoteReconciliationWorker(
 
         store.all()
             .filter { AirnoteReconciliationPolicy.shouldOfferSettlement(it, now) }
-            .forEach { AirnoteNotifications.notifyReadyToSettle(applicationContext, it) }
+            .forEach { payment ->
+                runCatching {
+                    journal.record(
+                        type = AirnoteProofEventType.READY_TO_SETTLE_BACKGROUND,
+                        paymentId = payment.id,
+                        detail = "Connectivity-constrained worker surfaced unsigned live Airnote as ready to settle"
+                    )
+                }
+                AirnoteNotifications.notifyReadyToSettle(applicationContext, payment)
+            }
 
         val unresolved = hasPendingSubmittedTransaction || hadRpcFailure
         if (unresolved && runAttemptCount < MAX_BACKGROUND_ATTEMPTS) {
@@ -99,6 +119,7 @@ class AirnoteReconciliationWorker(
 
     private fun handleDefinitiveFailure(
         store: AirnotePaymentStore,
+        journal: AirnoteProofJournal,
         payment: AirnotePayment,
         signature: String,
         now: Long,
@@ -106,6 +127,14 @@ class AirnoteReconciliationWorker(
         copy: String
     ) {
         store.reconcileSubmissionFailed(payment.id, signature, errorCode, now)
+        runCatching {
+            journal.record(
+                type = AirnoteProofEventType.SETTLEMENT_DEFINITIVE_FAILURE,
+                paymentId = payment.id,
+                transactionSignature = signature,
+                detail = "background_$errorCode"
+            )
+        }
         store.expireDue(now)
         val current = store.get(payment.id) ?: return
         val message = if (current.status == PaymentStatus.EXPIRED) {

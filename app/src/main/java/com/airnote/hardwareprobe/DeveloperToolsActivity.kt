@@ -3,6 +3,7 @@ package com.airnote.hardwareprobe
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import android.widget.LinearLayout
@@ -35,6 +36,13 @@ class DeveloperToolsActivity : AppCompatActivity() {
             setPadding(0, 8, 0, 20)
         })
 
+        root.addView(Button(this).apply {
+            text = "SEEKER PHYSICAL PROOF"
+            setOnClickListener {
+                startActivity(Intent(this@DeveloperToolsActivity, AirnoteProofActivity::class.java))
+            }
+        })
+
         val runGate00 = Button(this).apply {
             text = "RUN STRONGBOX HARDWARE PROBE"
             setOnClickListener {
@@ -43,6 +51,25 @@ class DeveloperToolsActivity : AppCompatActivity() {
                 Thread {
                     val result = ProbeEngine(this@DeveloperToolsActivity).run()
                     latestReport = result.report
+                    runCatching {
+                        val journal = AirnoteProofJournal(this@DeveloperToolsActivity)
+                        val p256Observed = result.report.contains("Security level: STRONGBOX") &&
+                            result.report.contains("Hardware backed: true") &&
+                            result.report.contains("SIGNATURE 1\nResult: SUCCESS") &&
+                            result.report.contains("Local verification: true")
+                        if (p256Observed) {
+                            journal.record(
+                                type = AirnoteProofEventType.STRONGBOX_P256_OBSERVED,
+                                detail = "StrongBox secp256r1/P-256 key was hardware-backed and produced a locally verified signature; one-use verdict=${result.verdict}",
+                                captureConnectivity = false
+                            )
+                        }
+                        journal.record(
+                            type = AirnoteProofEventType.HARDWARE_ONE_USE_PROBE_RESULT,
+                            detail = "Gate 00 hardware one-use verdict=${result.verdict}; this is separate from StrongBox P-256 availability",
+                            captureConnectivity = false
+                        )
+                    }
                     runOnUiThread {
                         reportView.text = latestReport
                         isEnabled = true

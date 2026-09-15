@@ -188,6 +188,7 @@ class Gate04SenderActivity : AppCompatActivity() {
             require(requestCheck.accepted) { requestCheck.reason }
 
             val commitment = AirnoteProtocol.noteCommitment(current.mintCore)
+            val commitmentHex = commitment.hex()
             val transferPayload = AirnoteProtocol.encodeTransferPayload(commitment, request)
             val alias = aliasFor(current.mintCore.noteId)
             val signature = NoteOwnerKeyManager(this).signTransfer(alias, transferPayload)
@@ -198,6 +199,14 @@ class Gate04SenderActivity : AppCompatActivity() {
             // note restores this QR instead of allowing a second recipient binding on this device.
             handoffPrefs().edit().putString(lockKey(noteIdHex), encoded).commit().also { saved ->
                 check(saved) { "could not persist sender handoff lock" }
+            }
+
+            runCatching {
+                AirnoteProofJournal(this).record(
+                    type = AirnoteProofEventType.SENDER_SIGNED_TRANSFER_QR_READY,
+                    paymentId = commitmentHex,
+                    detail = "Recipient request verified; StrongBox P-256 transfer authorization created; sender handoff lock persisted"
+                )
             }
 
             transferQr = encoded
