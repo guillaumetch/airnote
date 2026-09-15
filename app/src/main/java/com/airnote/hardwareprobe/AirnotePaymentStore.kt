@@ -38,7 +38,6 @@ class AirnotePaymentStore(context: Context) {
         )
         val pending = PaymentLifecycle.transition(accepted, PaymentStatus.PENDING, createdAtUnixSeconds)
         save(pending)
-        // If the receiver is offline this waits for connectivity, then surfaces "ready to settle".
         AirnoteReconciliationScheduler.enqueue(appContext)
         return pending
     }
@@ -72,13 +71,18 @@ class AirnotePaymentStore(context: Context) {
         }
         val submitted = settling.copy(settlementSignature = signature, errorCode = null)
         save(submitted)
-        // Persisted WorkManager job survives process death and reconciles this exact signature.
         AirnoteReconciliationScheduler.enqueue(appContext)
         return submitted
     }
 
     fun markSettled(id: String, signature: String, nowUnixSeconds: Long = System.currentTimeMillis() / 1000L): AirnotePayment {
         val current = requireNotNull(get(id)) { "unknown AIRNOTE payment $id" }
+        if (current.status == PaymentStatus.SETTLED) {
+            require(current.settlementSignature == signature) {
+                "settled payment has a different Solana signature"
+            }
+            return current
+        }
         require(current.status in setOf(PaymentStatus.SETTLING, PaymentStatus.PENDING, PaymentStatus.FAILED_RETRYABLE)) {
             "payment is not ready to settle"
         }
