@@ -43,25 +43,53 @@ class Gate04SenderActivity : AppCompatActivity() {
             require(NoteOwnerKeyManager(this).contains(alias)) {
                 "matching StrongBox note-owner key is not present on this device"
             }
+
             airnote = imported
-            transferQr = null
-            qr.setImageDrawable(null)
-            scanRequestButton.isEnabled = true
-            copyTransferButton.isEnabled = false
-            phase.text = "SCAN 1 OF 2  •  SCAN RECEIVER REQUEST"
-            status.text = buildString {
-                appendLine("AIRNOTE READY")
-                appendLine("${imported.mintCore.amountBaseUnits / 1_000_000.0} USDC")
-                appendLine()
-                appendLine("Backing certificate verified.")
-                appendLine("StrongBox owner key found on this Seeker.")
-                appendLine()
-                appendLine("Ask the receiver to show their AIRNOTE request QR, then scan it here.")
-                appendLine("Internet is not required for the two-scan handoff.")
+            val noteIdHex = imported.mintCore.noteId.hex()
+            val lockedTransfer = handoffPrefs().getString(lockKey(noteIdHex), null)
+            if (lockedTransfer != null) {
+                val locked = Gate04Wire.decodeTransferQr(lockedTransfer)
+                require(locked.airnote.mintCore.noteId.contentEquals(imported.mintCore.noteId)) {
+                    "stored handoff lock does not match loaded Airnote"
+                }
+                transferQr = lockedTransfer
+                qr.setImageBitmap(QrSupport.render(lockedTransfer))
+                scanRequestButton.isEnabled = false
+                copyTransferButton.isEnabled = true
+                phase.text = "SCAN 2 OF 2  •  SHOW LOCKED PAYMENT QR"
+                status.text = buildString {
+                    appendLine("HANDOFF ALREADY AUTHORIZED")
+                    appendLine("${imported.mintCore.amountBaseUnits / 1_000_000.0} USDC")
+                    appendLine()
+                    appendLine("This Airnote is already bound to:")
+                    appendLine(Base58.encode(locked.recipientRequest.recipientSolanaWallet))
+                    appendLine()
+                    appendLine("The original signed payment QR has been restored for receiver rescans.")
+                    append("AIRNOTE will not create a second recipient binding for this note on this device.")
+                }
+            } else {
+                transferQr = null
+                qr.setImageDrawable(null)
+                scanRequestButton.isEnabled = true
+                copyTransferButton.isEnabled = false
+                phase.text = "SCAN 1 OF 2  •  SCAN RECEIVER REQUEST"
+                status.text = buildString {
+                    appendLine("AIRNOTE READY")
+                    appendLine("${imported.mintCore.amountBaseUnits / 1_000_000.0} USDC")
+                    appendLine()
+                    appendLine("Backing certificate verified.")
+                    appendLine("StrongBox owner key found on this Seeker.")
+                    appendLine()
+                    appendLine("Ask the receiver to show their AIRNOTE request QR, then scan it here.")
+                    appendLine("Internet is not required for the two-scan handoff.")
+                }
             }
         }.onFailure { error ->
             airnote = null
+            transferQr = null
+            qr.setImageDrawable(null)
             scanRequestButton.isEnabled = false
+            copyTransferButton.isEnabled = false
             phase.text = "LOAD A FUNDED AIRNOTE"
             status.text = "IMPORT FAILED\n${error.message ?: error::class.java.simpleName}"
         }
@@ -151,6 +179,10 @@ class Gate04SenderActivity : AppCompatActivity() {
         runCatching {
             check(transferQr == null) { "This Airnote is already locked to a receiver handoff. Load a fresh funded Airnote to start another payment." }
             val current = airnote ?: error("load an Airnote first")
+            val noteIdHex = current.mintCore.noteId.hex()
+            check(handoffPrefs().getString(lockKey(noteIdHex), null) == null) {
+                "This Airnote already has a recipient handoff lock on this device"
+            }
             val request = Gate04Wire.decodeRequestQr(scanned.trim())
             val requestCheck = Gate04Verifier.validateRecipientRequest(current.mintCore, request, now())
             require(requestCheck.accepted) { requestCheck.reason }
@@ -161,6 +193,13 @@ class Gate04SenderActivity : AppCompatActivity() {
             val signature = NoteOwnerKeyManager(this).signTransfer(alias, transferPayload)
             val transfer = Gate04Wire.OfflineTransfer(current, request, signature)
             val encoded = Gate04Wire.encodeTransferQr(transfer)
+
+            // Persist the exact authorized transfer before presenting it. Reopening/reloading the same
+            // note restores this QR instead of allowing a second recipient binding on this device.
+            handoffPrefs().edit().putString(lockKey(noteIdHex), encoded).commit().also { saved ->
+                check(saved) { "could not persist sender handoff lock" }
+            }
+
             transferQr = encoded
             qr.setImageBitmap(QrSupport.render(encoded))
             copyTransferButton.isEnabled = true
@@ -176,13 +215,19 @@ class Gate04SenderActivity : AppCompatActivity() {
                 appendLine("Show this QR to the receiver. They scan it to accept the Airnote offline.")
                 appendLine()
                 appendLine("HANDOFF LOCKED")
-                append("This Airnote will not be rebound to another receiver from this screen.")
+                append("The same signed QR will be restored if this Airnote is reopened on this device.")
             }
         }.onFailure { error ->
             status.text = "SEND FAILED\n${error.message ?: error::class.java.simpleName}"
         }
     }
 
+    private fun handoffPrefs() = getSharedPreferences(HANDOFF_PREFS, MODE_PRIVATE)
+    private fun lockKey(noteIdHex: String) = "handoff:$noteIdHex"
     private fun aliasFor(noteId: ByteArray): String = "airnote-note-v1-${noteId.hex()}"
     private fun now(): Long = System.currentTimeMillis() / 1000L
+
+    companion object {
+        private const val HANDOFF_PREFS = "airnote_sender_handoff_locks_v1"
+    }
 }
