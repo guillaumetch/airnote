@@ -113,12 +113,11 @@ class AirnoteSolanaRpc(
     ): FinalizedSignature {
         val started = System.currentTimeMillis()
         while (System.currentTimeMillis() - started < timeoutMillis) {
-            when (val observation = signatureObservation(signature)) {
-                is SignatureObservation -> when (observation.state) {
-                    SignatureState.FINALIZED -> return FinalizedSignature(requireNotNull(observation.slot))
-                    SignatureState.FAILED -> throw TransactionFailedException(observation.error ?: "unknown chain error")
-                    SignatureState.PENDING -> Unit
-                }
+            val observation = signatureObservation(signature)
+            when (observation.state) {
+                SignatureState.FINALIZED -> return FinalizedSignature(requireNotNull(observation.slot))
+                SignatureState.FAILED -> throw TransactionFailedException(observation.error ?: "unknown chain error")
+                SignatureState.PENDING -> Unit
             }
             delay(POLL_INTERVAL_MS)
         }
