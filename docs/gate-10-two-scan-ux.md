@@ -27,11 +27,12 @@ After scan 2, the receiver has locally accepted the Airnote without network acce
 
 - labels the receiver request as `SCAN 1 OF 2`
 - labels the returned Airnote as `SCAN 2 OF 2`
-- keeps the signed QR visible for receiver rescans
-- once a transfer is signed, disables rebinding that loaded Airnote to another recipient from the same screen
-- a new recipient handoff requires loading a fresh funded Airnote
+- persists the exact signed transfer QR under the Airnote note ID before presenting it
+- reopening or reloading the same Airnote on the same device restores that exact signed QR for receiver rescans
+- a locally locked Airnote cannot be rebound to a second recipient on that device
+- a new recipient handoff requires a different funded Airnote
 
-The sender lock is a local product guardrail. On-chain replay / redemption protection remains the protocol source of truth.
+The sender handoff lock is a local product guardrail. It is deliberately persisted across activity/app restarts but is not presented as global double-spend prevention. Clearing app data or using another sender environment is outside this local guardrail. The Solana program's existing replay/redemption rules remain the protocol source of truth.
 
 ### Home
 
@@ -72,6 +73,10 @@ Receiver:
 When connectivity is available:
 
 `Settle on Solana -> wallet approval -> submitted -> finalized -> Settled`
+
+If the sender screen/app is reopened before the receiver scans:
+
+`Load same funded Airnote -> existing recipient lock detected -> original signed QR restored`
 
 ## Gate status
 
