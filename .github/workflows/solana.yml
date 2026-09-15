@@ -2,7 +2,7 @@ name: Solana AIRNOTE
 
 on:
   pull_request:
-    branches: [ gate-01-note-protocol ]
+    branches: [ gate-01-note-protocol, gate-02-solana-vault ]
 
 jobs:
   rust-tests:
@@ -21,6 +21,22 @@ jobs:
 
       - name: Cross-language protocol tests
         run: cargo test -p airnote-vault --lib
+
+      - name: Mint attestor tests
+        run: |
+          cargo test \
+            --manifest-path tools/airnote_attestor/Cargo.toml
+
+      - name: Finalization observer tests
+        run: python3 -m unittest tools/test_observe_finalized_note.py
+
+      - name: Devnet helper checks
+        run: |
+          node --check tools/devnet/airnote-devnet.mjs
+          bash -n tools/devnet/bootstrap-program.sh
+          bash -n tools/devnet/certify-airnote.sh
+          npm install --prefix tools/devnet --ignore-scripts --no-audit --no-fund
+          node tools/devnet/airnote-devnet.mjs help >/dev/null
 
       - name: Check isolated LiteSVM harness
         run: |

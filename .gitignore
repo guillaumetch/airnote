@@ -13,3 +13,11 @@ target/
 .anchor/
 .test-ledger/
 *.log
+
+# AIRNOTE local deployment/certificate material — never commit.
+.airnote/
+target/deploy/*-keypair.json
+
+# AIRNOTE attestor private material — never commit real issuer seeds.
+*.attestor-seed
+attestor-seed.hex

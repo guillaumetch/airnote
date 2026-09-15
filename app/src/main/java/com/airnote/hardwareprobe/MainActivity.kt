@@ -15,7 +15,7 @@ import java.io.File
 
 class MainActivity : AppCompatActivity() {
     private lateinit var reportView: TextView
-    private var latestReport: String = "AIRNOTE Gate 00 has not been run yet."
+    private var latestReport: String = "AIRNOTE is ready. Run Gate 00 or create a Gate 03 note-owner key."
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -26,16 +26,16 @@ class MainActivity : AppCompatActivity() {
         }
 
         root.addView(TextView(this).apply {
-            text = "AIRNOTE\nHardware Gate 00"
+            text = "AIRNOTE\nSeeker Security Lab"
             textSize = 28f
             gravity = Gravity.CENTER_HORIZONTAL
         })
 
-        val run = Button(this).apply {
-            text = "RUN COMPLETE PROBE"
+        val runGate00 = Button(this).apply {
+            text = "RUN GATE 00 HARDWARE PROBE"
             setOnClickListener {
                 isEnabled = false
-                reportView.text = "Running hardware probe…"
+                reportView.text = "Running Gate 00 hardware probe…"
                 Thread {
                     val result = ProbeEngine(this@MainActivity).run()
                     latestReport = result.report
@@ -46,12 +46,32 @@ class MainActivity : AppCompatActivity() {
                 }.start()
             }
         }
-        root.addView(run)
+        root.addView(runGate00)
+
+        val createGate03Key = Button(this).apply {
+            text = "CREATE GATE 03 NOTE OWNER"
+            setOnClickListener {
+                isEnabled = false
+                reportView.text = "Creating persistent StrongBox note-owner key…"
+                Thread {
+                    latestReport = runCatching {
+                        NoteOwnerKeyManager(this@MainActivity).create().report()
+                    }.getOrElse { t ->
+                        "AIRNOTE — GATE 03 NOTE OWNER\n\nFAIL\n${t::class.java.name}: ${t.message.orEmpty()}"
+                    }
+                    runOnUiThread {
+                        reportView.text = latestReport
+                        isEnabled = true
+                    }
+                }.start()
+            }
+        }
+        root.addView(createGate03Key)
 
         root.addView(Button(this).apply {
-            text = "RESET"
+            text = "RESET VIEW"
             setOnClickListener {
-                latestReport = "AIRNOTE Gate 00 has not been run yet."
+                latestReport = "AIRNOTE is ready. Run Gate 00 or create a Gate 03 note-owner key."
                 reportView.text = latestReport
             }
         })
@@ -60,7 +80,7 @@ class MainActivity : AppCompatActivity() {
             text = "COPY REPORT"
             setOnClickListener {
                 val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(ClipData.newPlainText("AIRNOTE Gate 00", latestReport))
+                clipboard.setPrimaryClip(ClipData.newPlainText("AIRNOTE report", latestReport))
                 Toast.makeText(this@MainActivity, "Report copied", Toast.LENGTH_SHORT).show()
             }
         })
@@ -68,7 +88,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(Button(this).apply {
             text = "EXPORT REPORT"
             setOnClickListener {
-                val file = File(getExternalFilesDir(null), "airnote-gate00-report.txt")
+                val file = File(getExternalFilesDir(null), "airnote-report.txt")
                 file.writeText(latestReport)
                 Toast.makeText(this@MainActivity, "Saved: ${file.absolutePath}", Toast.LENGTH_LONG).show()
             }
