@@ -20,33 +20,32 @@ class AirnoteReconciliationWorker(
         for (payment in submitted) {
             val signature = payment.settlementSignature ?: continue
             try {
-                when (val observation = rpc.signatureObservation(signature)) {
-                    is AirnoteSolanaRpc.SignatureObservation -> when (observation.state) {
-                        AirnoteSolanaRpc.SignatureState.FINALIZED -> {
-                            val settled = store.reconcileFinalized(payment.id, signature, now)
-                            AirnoteNotifications.notifySettled(applicationContext, settled)
-                        }
+                val observation = rpc.signatureObservation(signature)
+                when (observation.state) {
+                    AirnoteSolanaRpc.SignatureState.FINALIZED -> {
+                        val settled = store.reconcileFinalized(payment.id, signature, now)
+                        AirnoteNotifications.notifySettled(applicationContext, settled)
+                    }
 
-                        AirnoteSolanaRpc.SignatureState.FAILED -> {
-                            store.reconcileSubmissionFailed(
-                                payment.id,
-                                signature,
-                                "CHAIN_REJECTED",
-                                now
-                            )
-                            store.expireDue(now)
-                            val current = store.get(payment.id) ?: continue
-                            val copy = if (current.status == PaymentStatus.EXPIRED) {
-                                "The submitted transaction failed and this Airnote is now expired."
-                            } else {
-                                "The submitted Solana transaction failed. Open AIRNOTE to retry with your wallet."
-                            }
-                            AirnoteNotifications.notifyNeedsAttention(applicationContext, current, copy)
+                    AirnoteSolanaRpc.SignatureState.FAILED -> {
+                        store.reconcileSubmissionFailed(
+                            payment.id,
+                            signature,
+                            "CHAIN_REJECTED",
+                            now
+                        )
+                        store.expireDue(now)
+                        val current = store.get(payment.id) ?: continue
+                        val copy = if (current.status == PaymentStatus.EXPIRED) {
+                            "The submitted transaction failed and this Airnote is now expired."
+                        } else {
+                            "The submitted Solana transaction failed. Open AIRNOTE to retry with your wallet."
                         }
+                        AirnoteNotifications.notifyNeedsAttention(applicationContext, current, copy)
+                    }
 
-                        AirnoteSolanaRpc.SignatureState.PENDING -> {
-                            hasPendingSubmittedTransaction = true
-                        }
+                    AirnoteSolanaRpc.SignatureState.PENDING -> {
+                        hasPendingSubmittedTransaction = true
                     }
                 }
             } catch (_: Exception) {
