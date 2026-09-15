@@ -93,6 +93,32 @@ class AirnotePaymentStore(context: Context) {
         return settled
     }
 
+    /**
+     * Chain finality is authoritative. This additionally repairs Gate 09/10 local data that may have
+     * guessed EXPIRED while a known transaction signature was still unresolved.
+     */
+    fun reconcileFinalized(
+        id: String,
+        signature: String,
+        nowUnixSeconds: Long = System.currentTimeMillis() / 1000L
+    ): AirnotePayment {
+        val current = requireNotNull(get(id)) { "unknown AIRNOTE payment $id" }
+        if (current.status == PaymentStatus.EXPIRED) {
+            require(current.settlementSignature == signature) {
+                "cannot repair expired payment from an unrelated transaction"
+            }
+            val repaired = current.copy(
+                status = PaymentStatus.SETTLED,
+                settlementSignature = signature,
+                errorCode = null,
+                lastSettlementAttemptUnixSeconds = current.lastSettlementAttemptUnixSeconds ?: nowUnixSeconds
+            )
+            save(repaired)
+            return repaired
+        }
+        return markSettled(id, signature, nowUnixSeconds)
+    }
+
     /** Temporary failure where a submitted signature may still be live. Preserve that signature. */
     fun markRetryableFailure(id: String, errorCode: String, nowUnixSeconds: Long = System.currentTimeMillis() / 1000L): AirnotePayment {
         val current = requireNotNull(get(id)) { "unknown AIRNOTE payment $id" }
@@ -125,6 +151,24 @@ class AirnotePaymentStore(context: Context) {
             .copy(settlementSignature = null, errorCode = errorCode)
         save(failed)
         return failed
+    }
+
+    fun reconcileSubmissionFailed(
+        id: String,
+        signature: String,
+        errorCode: String,
+        nowUnixSeconds: Long = System.currentTimeMillis() / 1000L
+    ): AirnotePayment {
+        val current = requireNotNull(get(id)) { "unknown AIRNOTE payment $id" }
+        if (current.status == PaymentStatus.EXPIRED) {
+            require(current.settlementSignature == signature) {
+                "cannot reconcile expired payment from an unrelated transaction"
+            }
+            val reconciled = current.copy(settlementSignature = null, errorCode = errorCode)
+            save(reconciled)
+            return reconciled
+        }
+        return markSubmissionFailed(id, errorCode, nowUnixSeconds)
     }
 
     fun expireDue(nowUnixSeconds: Long = System.currentTimeMillis() / 1000L) {
