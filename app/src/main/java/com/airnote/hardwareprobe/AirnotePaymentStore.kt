@@ -47,27 +47,76 @@ class AirnotePaymentStore(context: Context) {
         return next
     }
 
+    /**
+     * Persist the Solana signature before waiting for finalization.
+     *
+     * This is the local idempotency fence for Gate 09: after the wallet reports submission, an
+     * app restart or RPC timeout reconciles this exact signature instead of constructing a fresh
+     * redemption transaction.
+     */
+    fun markSubmitted(
+        id: String,
+        signature: String,
+        nowUnixSeconds: Long = System.currentTimeMillis() / 1000L
+    ): AirnotePayment {
+        require(signature.isNotBlank()) { "settlement signature is empty" }
+        val current = requireNotNull(get(id)) { "unknown AIRNOTE payment $id" }
+        val settling = when (current.status) {
+            PaymentStatus.PENDING, PaymentStatus.FAILED_RETRYABLE ->
+                PaymentLifecycle.transition(current, PaymentStatus.SETTLING, nowUnixSeconds)
+            PaymentStatus.SETTLING -> current
+            else -> error("payment is not ready to submit from ${current.status}")
+        }
+        val submitted = settling.copy(settlementSignature = signature, errorCode = null)
+        save(submitted)
+        return submitted
+    }
+
     fun markSettled(id: String, signature: String, nowUnixSeconds: Long = System.currentTimeMillis() / 1000L): AirnotePayment {
         val current = requireNotNull(get(id)) { "unknown AIRNOTE payment $id" }
-        require(current.status == PaymentStatus.SETTLING || current.status == PaymentStatus.PENDING) {
+        require(current.status in setOf(PaymentStatus.SETTLING, PaymentStatus.PENDING, PaymentStatus.FAILED_RETRYABLE)) {
             "payment is not ready to settle"
         }
-        val settling = if (current.status == PaymentStatus.PENDING) {
-            PaymentLifecycle.transition(current, PaymentStatus.SETTLING, nowUnixSeconds)
-        } else current
+        val settling = when (current.status) {
+            PaymentStatus.PENDING, PaymentStatus.FAILED_RETRYABLE ->
+                PaymentLifecycle.transition(current, PaymentStatus.SETTLING, nowUnixSeconds)
+            else -> current
+        }
         val settled = PaymentLifecycle.transition(settling, PaymentStatus.SETTLED, nowUnixSeconds)
             .copy(settlementSignature = signature, errorCode = null)
         save(settled)
         return settled
     }
 
+    /** Temporary failure where a submitted signature may still be live. Preserve that signature. */
     fun markRetryableFailure(id: String, errorCode: String, nowUnixSeconds: Long = System.currentTimeMillis() / 1000L): AirnotePayment {
         val current = requireNotNull(get(id)) { "unknown AIRNOTE payment $id" }
-        val settling = if (current.status == PaymentStatus.PENDING) {
-            PaymentLifecycle.transition(current, PaymentStatus.SETTLING, nowUnixSeconds)
-        } else current
+        val settling = when (current.status) {
+            PaymentStatus.PENDING, PaymentStatus.FAILED_RETRYABLE ->
+                PaymentLifecycle.transition(current, PaymentStatus.SETTLING, nowUnixSeconds)
+            PaymentStatus.SETTLING -> current
+            else -> error("payment is not in a retryable settlement state")
+        }
         val failed = PaymentLifecycle.transition(settling, PaymentStatus.FAILED_RETRYABLE, nowUnixSeconds)
             .copy(errorCode = errorCode)
+        save(failed)
+        return failed
+    }
+
+    /**
+     * A chain status explicitly proved the previous submission failed. Clear the signature so a
+     * later user-initiated retry is allowed to build and submit a fresh transaction.
+     */
+    fun markSubmissionFailed(id: String, errorCode: String, nowUnixSeconds: Long = System.currentTimeMillis() / 1000L): AirnotePayment {
+        val current = requireNotNull(get(id)) { "unknown AIRNOTE payment $id" }
+        val settling = when (current.status) {
+            PaymentStatus.PENDING, PaymentStatus.FAILED_RETRYABLE ->
+                PaymentLifecycle.transition(current, PaymentStatus.SETTLING, nowUnixSeconds)
+            PaymentStatus.SETTLING -> current
+            else -> error("payment is not in a submitted settlement state")
+        }
+        val failed = PaymentLifecycle.transition(settling, PaymentStatus.FAILED_RETRYABLE, nowUnixSeconds)
+            .copy(settlementSignature = null, errorCode = errorCode)
         save(failed)
         return failed
     }

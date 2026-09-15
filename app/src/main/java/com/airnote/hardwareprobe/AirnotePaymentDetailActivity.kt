@@ -10,6 +10,9 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import com.solana.mobilewalletadapter.clientlib.ActivityResultSender
+import kotlinx.coroutines.launch
 import java.time.Instant
 
 class AirnotePaymentDetailActivity : AppCompatActivity() {
@@ -52,18 +55,67 @@ class AirnotePaymentDetailActivity : AppCompatActivity() {
                 payment.lastSettlementAttemptUnixSeconds?.let {
                     appendLine("Settlement attempt\n${Instant.ofEpochSecond(it)}\n")
                 }
+                payment.settlementSignature?.let { signature ->
+                    if (payment.status != PaymentStatus.SETTLED) {
+                        appendLine("Submitted to Solana\n$signature\n")
+                    }
+                }
                 if (payment.status == PaymentStatus.SETTLED) appendLine("Settled on Solana")
                 if (payment.status == PaymentStatus.EXPIRED) appendLine("This Airnote expired before settlement could complete.")
                 appendLine()
                 appendLine("Expires\n${Instant.ofEpochSecond(payment.expiresAtUnixSeconds)}")
-                payment.settlementSignature?.let { appendLine("\nSolana transaction\n$it") }
+                if (payment.status == PaymentStatus.SETTLED) {
+                    payment.settlementSignature?.let { appendLine("\nSolana transaction\n$it") }
+                }
             }
             textSize = 15f
+            setTextIsSelectable(true)
         })
+
+        if (canSettle(payment)) {
+            root.addView(Button(this).apply {
+                text = settlementActionLabel(payment)
+                setOnClickListener {
+                    isEnabled = false
+                    text = if (payment.settlementSignature == null) "OPENING SOLANA WALLET…" else "CHECKING SOLANA…"
+                    lifecycleScope.launch {
+                        val result = runCatching {
+                            AirnoteSettlementCoordinator(store).settle(
+                                id,
+                                ActivityResultSender(this@AirnotePaymentDetailActivity)
+                            )
+                        }
+                        result.onSuccess { settled ->
+                            Toast.makeText(
+                                this@AirnotePaymentDetailActivity,
+                                "Airnote settled on Solana • slot ${settled.finalizedSlot}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }.onFailure { error ->
+                            Toast.makeText(
+                                this@AirnotePaymentDetailActivity,
+                                settlementErrorCopy(error),
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                        render()
+                    }
+                }
+            })
+            root.addView(TextView(this).apply {
+                text = if (payment.settlementSignature == null) {
+                    "Your Solana wallet will open to authorize the recipient-bound redemption. AIRNOTE never receives your wallet private key."
+                } else {
+                    "A transaction was already submitted. AIRNOTE will reconcile that transaction before any new submission."
+                }
+                textSize = 13f
+                setPadding(0, 4, 0, 16)
+            })
+        }
 
         payment.protocolPayload?.let { payload ->
             root.addView(Button(this).apply {
-                text = "COPY SETTLEMENT PAYLOAD"
+                text = "COPY RAW SETTLEMENT PAYLOAD"
                 setOnClickListener {
                     val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     clipboard.setPrimaryClip(ClipData.newPlainText("AIRNOTE settlement payload", payload))
@@ -79,6 +131,7 @@ class AirnotePaymentDetailActivity : AppCompatActivity() {
                 appendLine("Status: ${payment.status}")
                 appendLine("Retries: ${payment.retryCount}")
                 payment.counterparty?.let { appendLine("Recipient: $it") }
+                payment.settlementSignature?.let { appendLine("Transaction: $it") }
                 payment.errorCode?.let { appendLine("Last error: $it") }
             }
             textSize = 12f
@@ -87,6 +140,31 @@ class AirnotePaymentDetailActivity : AppCompatActivity() {
         })
 
         setContentView(ScrollView(this).apply { addView(root) })
+    }
+
+    private fun canSettle(payment: AirnotePayment): Boolean =
+        payment.direction == PaymentDirection.RECEIVED &&
+            payment.protocolPayload != null &&
+            payment.status in setOf(PaymentStatus.PENDING, PaymentStatus.SETTLING, PaymentStatus.FAILED_RETRYABLE)
+
+    private fun settlementActionLabel(payment: AirnotePayment): String = when {
+        payment.settlementSignature != null -> "CHECK SOLANA SETTLEMENT"
+        payment.status == PaymentStatus.FAILED_RETRYABLE -> "RETRY SETTLEMENT"
+        else -> "SETTLE ON SOLANA"
+    }
+
+    private fun settlementErrorCopy(error: Throwable): String = when (error) {
+        is AirnoteSettlementBuilder.WalletMismatchException ->
+            "Choose the same Solana wallet that was bound into this Airnote when you received it."
+        is AirnoteSettlementBuilder.AirnoteExpiredException ->
+            "This Airnote expired before settlement could complete."
+        is AirnoteSettlementCoordinator.WalletUnavailableException ->
+            "No compatible Solana wallet is available on this device."
+        is AirnoteSolanaRpc.FinalizationTimeoutException ->
+            "Settlement was submitted but finalization is still pending. Check it again — AIRNOTE will not resubmit it."
+        is AirnoteSolanaRpc.RpcException ->
+            "Solana RPC is unavailable. Your Airnote remains safe to retry or reconcile."
+        else -> "Settlement could not complete: ${error.message ?: error::class.java.simpleName}"
     }
 
     private fun statusLabel(status: PaymentStatus): String = when (status) {
