@@ -36,21 +36,13 @@ object AirnoteSettlementBuilder {
 
     suspend fun prepare(
         transferPayload: String,
-        authorizedWalletPublicKey: ByteArray,
         rpc: AirnoteSolanaRpc
     ): Plan {
-        require(authorizedWalletPublicKey.size == 32) { "authorized Solana wallet must be 32 bytes" }
         val transfer = Gate04Wire.decodeTransferQr(transferPayload.trim())
         val core = transfer.airnote.mintCore
         val request = transfer.recipientRequest
         val recipient = SolanaPublicKey(request.recipientSolanaWallet)
 
-        if (!recipient.bytes.contentEquals(authorizedWalletPublicKey)) {
-            throw WalletMismatchException(
-                Base58.encode(recipient.bytes),
-                Base58.encode(authorizedWalletPublicKey)
-            )
-        }
         require(core.network == AirnoteProtocol.Network.DEVNET) { "Gate 09 currently settles devnet Airnotes only" }
 
         val programId = SolanaPublicKey(core.programId)
@@ -144,6 +136,16 @@ object AirnoteSettlementBuilder {
             minContextSlot = latest.contextSlot,
             lastValidBlockHeight = latest.lastValidBlockHeight
         )
+    }
+
+    fun requireAuthorizedRecipient(plan: Plan, authorizedWalletPublicKey: ByteArray) {
+        require(authorizedWalletPublicKey.size == 32) { "authorized Solana wallet must be 32 bytes" }
+        if (!plan.recipient.bytes.contentEquals(authorizedWalletPublicKey)) {
+            throw WalletMismatchException(
+                Base58.encode(plan.recipient.bytes),
+                Base58.encode(authorizedWalletPublicKey)
+            )
+        }
     }
 
     internal fun p256InstructionData(
