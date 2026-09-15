@@ -39,7 +39,12 @@ class MainActivity : AppCompatActivity() {
             text = "Offline USDC on Solana"
             textSize = 16f
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, 4, 0, 28)
+        })
+        root.addView(TextView(this).apply {
+            text = "Two scans to exchange offline. Settle when you're back online."
+            textSize = 14f
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, 6, 0, 28)
         })
 
         root.addView(TextView(this).apply {
@@ -53,6 +58,10 @@ class MainActivity : AppCompatActivity() {
         root.addView(Button(this).apply {
             text = "RECEIVE AIRNOTE"
             setOnClickListener { startActivity(Intent(this@MainActivity, Gate04ReceiverActivity::class.java)) }
+        })
+        root.addView(Button(this).apply {
+            text = "ACTIVITY"
+            setOnClickListener { startActivity(Intent(this@MainActivity, AirnoteHistoryActivity::class.java)) }
         })
 
         root.addView(TextView(this).apply {
@@ -161,7 +170,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(createAirnote)
 
         root.addView(TextView(this).apply {
-            text = "LOCAL ACTIVITY"
+            text = "LOCAL STATUS"
             textSize = 20f
             setPadding(0, 30, 0, 4)
         })
@@ -204,17 +213,21 @@ class MainActivity : AppCompatActivity() {
 
     private fun refreshLocalActivity() {
         if (!::activityView.isInitialized) return
-        val prefs = getSharedPreferences("airnote_gate04", MODE_PRIVATE)
-        val accepted = prefs.all.keys.count { it.startsWith("accepted:") }
+        val store = AirnotePaymentStore(this)
+        store.expireDue()
+        val payments = store.all()
+        val pending = payments.count { it.status in setOf(PaymentStatus.ACCEPTED_OFFLINE, PaymentStatus.PENDING, PaymentStatus.SETTLING, PaymentStatus.FAILED_RETRYABLE) }
+        val settled = payments.count { it.status == PaymentStatus.SETTLED }
         val mintRequests = getExternalFilesDir(null)
             ?.listFiles()
             .orEmpty()
             .count { it.name.startsWith("airnote-mint-request-") }
         activityView.text = buildString {
-            appendLine("Pending offline acceptances: $accepted")
+            appendLine("Pending settlement: $pending")
+            appendLine("Settled: $settled")
             appendLine("Prepared sender notes: $mintRequests")
             appendLine()
-            append("Settlement remains final on Solana.")
+            append("Offline acceptance is local. Settlement remains final on Solana.")
         }
     }
 
