@@ -8,7 +8,9 @@ object AirnoteReconciliationPolicy {
             payment.status in setOf(
                 PaymentStatus.PENDING,
                 PaymentStatus.SETTLING,
-                PaymentStatus.FAILED_RETRYABLE
+                PaymentStatus.FAILED_RETRYABLE,
+                // Gate 11 can repair legacy local expiry guesses when a known tx later proves final.
+                PaymentStatus.EXPIRED
             )
 
     fun shouldOfferSettlement(payment: AirnotePayment, nowUnixSeconds: Long): Boolean =
