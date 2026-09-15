@@ -15,6 +15,7 @@ class AirnoteReconciliationWorker(
         val now = System.currentTimeMillis() / 1000L
         var hasPendingSubmittedTransaction = false
         var hadRpcFailure = false
+        var finalizedBlockHeight: Long? = null
 
         val submitted = store.all().filter(AirnoteReconciliationPolicy::shouldReconcileSubmitted)
         for (payment in submitted) {
@@ -28,23 +29,33 @@ class AirnoteReconciliationWorker(
                     }
 
                     AirnoteSolanaRpc.SignatureState.FAILED -> {
-                        store.reconcileSubmissionFailed(
-                            payment.id,
-                            signature,
-                            "CHAIN_REJECTED",
-                            now
+                        handleDefinitiveFailure(
+                            store = store,
+                            payment = payment,
+                            signature = signature,
+                            now = now,
+                            errorCode = "CHAIN_REJECTED",
+                            copy = "The submitted Solana transaction failed. Open AIRNOTE to retry with your wallet."
                         )
-                        store.expireDue(now)
-                        val current = store.get(payment.id) ?: continue
-                        val copy = if (current.status == PaymentStatus.EXPIRED) {
-                            "The submitted transaction failed and this Airnote is now expired."
-                        } else {
-                            "The submitted Solana transaction failed. Open AIRNOTE to retry with your wallet."
-                        }
-                        AirnoteNotifications.notifyNeedsAttention(applicationContext, current, copy)
                     }
 
                     AirnoteSolanaRpc.SignatureState.PENDING -> {
+                        val lastValidBlockHeight = payment.settlementLastValidBlockHeight
+                        if (lastValidBlockHeight != null && runAttemptCount > 0) {
+                            val currentHeight = finalizedBlockHeight
+                                ?: rpc.finalizedBlockHeight().also { finalizedBlockHeight = it }
+                            if (currentHeight > lastValidBlockHeight) {
+                                handleDefinitiveFailure(
+                                    store = store,
+                                    payment = payment,
+                                    signature = signature,
+                                    now = now,
+                                    errorCode = "BLOCKHASH_EXPIRED",
+                                    copy = "The previous Solana submission expired before landing. Open AIRNOTE to authorize a fresh retry."
+                                )
+                                continue
+                            }
+                        }
                         hasPendingSubmittedTransaction = true
                     }
                 }
@@ -79,6 +90,25 @@ class AirnoteReconciliationWorker(
         }
 
         return Result.success()
+    }
+
+    private fun handleDefinitiveFailure(
+        store: AirnotePaymentStore,
+        payment: AirnotePayment,
+        signature: String,
+        now: Long,
+        errorCode: String,
+        copy: String
+    ) {
+        store.reconcileSubmissionFailed(payment.id, signature, errorCode, now)
+        store.expireDue(now)
+        val current = store.get(payment.id) ?: return
+        val message = if (current.status == PaymentStatus.EXPIRED) {
+            "The previous Solana submission did not land and this Airnote is now expired."
+        } else {
+            copy
+        }
+        AirnoteNotifications.notifyNeedsAttention(applicationContext, current, message)
     }
 
     companion object {
