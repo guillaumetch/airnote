@@ -45,12 +45,12 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             setPadding(32, 32, 32, 48)
         }
         root.addView(TextView(this).apply {
-            text = "RECEIVE AIRNOTE\nSeeker B"
+            text = "RECEIVE AIRNOTE"
             textSize = 28f
             gravity = Gravity.CENTER_HORIZONTAL
         })
         root.addView(TextView(this).apply {
-            text = "Enter the Devnet Solana wallet that should receive the USDC after settlement. Generate the request, then both Seekers can stay in airplane mode for the handoff."
+            text = "1. Confirm the Solana wallet that should receive USDC.\n2. Show your request QR to the sender.\n3. Scan their signed payment QR.\nInternet is not required for the handoff."
             textSize = 15f
             setPadding(0, 20, 0, 12)
         })
@@ -63,18 +63,18 @@ class Gate04ReceiverActivity : AppCompatActivity() {
         root.addView(walletInput)
 
         root.addView(Button(this).apply {
-            text = "GENERATE OFFLINE RECEIVE REQUEST"
+            text = "SHOW RECEIVE REQUEST"
             setOnClickListener { generateRequest() }
         })
 
         scanTransferButton = Button(this).apply {
-            text = "SCAN SIGNED AIRNOTE"
+            text = "SCAN SIGNED PAYMENT"
             isEnabled = false
             setOnClickListener {
                 transferScanner.launch(
                     ScanOptions()
                         .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                        .setPrompt("Scan signed AIRNOTE from Seeker A")
+                        .setPrompt("Scan signed AIRNOTE payment")
                         .setBeepEnabled(false)
                         .setOrientationLocked(false)
                 )
@@ -83,7 +83,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
         root.addView(scanTransferButton)
 
         copyAcceptedButton = Button(this).apply {
-            text = "COPY ACCEPTED SETTLEMENT PAYLOAD"
+            text = "COPY SETTLEMENT PAYLOAD"
             isEnabled = false
             setOnClickListener {
                 val payload = acceptedPayload ?: return@setOnClickListener
@@ -100,7 +100,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
         root.addView(qr)
 
         status = TextView(this).apply {
-            text = "Create a receiver request to begin."
+            text = "Create a receive request to begin."
             textSize = 14f
             typeface = android.graphics.Typeface.MONOSPACE
             setTextIsSelectable(true)
@@ -129,11 +129,11 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             qr.setImageBitmap(QrSupport.render(encoded))
             scanTransferButton.isEnabled = true
             status.text = buildString {
-                appendLine("RECEIVER REQUEST READY")
+                appendLine("RECEIVE REQUEST READY")
                 appendLine("Wallet: $walletText")
-                appendLine("Expires: ${request.requestExpiresAtUnixSeconds}")
+                appendLine("Request expires: ${request.requestExpiresAtUnixSeconds}")
                 appendLine()
-                appendLine("Keep this QR visible for Seeker A. Internet is not required.")
+                appendLine("Show this QR to the sender. This expiry protects handoff freshness only.")
             }
         }.onFailure { error ->
             currentRequest = null
@@ -144,8 +144,8 @@ class Gate04ReceiverActivity : AppCompatActivity() {
 
     private fun handleTransfer(scanned: String) {
         runCatching {
-            require(Build.VERSION.SDK_INT >= 33) { "Gate 04 requires Android API 33+ for Ed25519 verification" }
-            val expected = currentRequest ?: error("generate a receiver request first")
+            require(Build.VERSION.SDK_INT >= 33) { "AIRNOTE requires Android API 33+ for Ed25519 verification" }
+            val expected = currentRequest ?: error("create a receive request first")
             val transfer = Gate04Wire.decodeTransferQr(scanned.trim())
             val check = Gate04Verifier.verifyOfflineTransfer(transfer, expected, now())
             require(check.accepted) { check.reason }
@@ -164,22 +164,21 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             copyAcceptedButton.isEnabled = true
             qr.setImageDrawable(null)
             status.text = buildString {
-                appendLine("ACCEPTED OFFLINE")
-                appendLine("PENDING SETTLEMENT")
+                appendLine("ACCEPTED OFFLINE ✓")
+                appendLine("PENDING SOLANA SETTLEMENT")
                 appendLine()
                 appendLine("Amount: ${transfer.airnote.mintCore.amountBaseUnits / 1_000_000} USDC")
                 appendLine("Commitment: $commitmentHex")
-                appendLine("Mint certificate: VERIFIED")
+                appendLine("Backing certificate: VERIFIED")
                 appendLine("Recipient binding: VERIFIED")
-                appendLine("StrongBox P-256 transfer: VERIFIED")
+                appendLine("StrongBox P-256 signature: VERIFIED")
                 appendLine("Local duplicate check: PASS")
                 appendLine()
                 appendLine("No network was required for acceptance.")
-                appendLine("Reconnect only when ready to settle on Solana.")
-                appendLine("Saved locally: ${file.name}")
+                appendLine("Reconnect when ready to settle on Solana.")
             }
         }.onFailure { error ->
-            status.text = "OFFLINE REJECTED\n${error.message ?: error::class.java.simpleName}"
+            status.text = "PAYMENT REJECTED\n${error.message ?: error::class.java.simpleName}"
         }
     }
 
