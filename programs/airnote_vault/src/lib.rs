@@ -15,7 +15,7 @@ use errors::AirnoteError;
 use protocol::{assert_p256_verification, encode_transfer_payload, note_commitment, MintCoreFields};
 use state::{Config, Note};
 
-declare_id!("8pF7EZH5K1NK8KYmXLesHLMTWbYdD2FWQ9wR6xVLZL7C");
+declare_id!("DyT3zjATxr4Fg28Ne3DjjV5Q6rd6JWx2Vo7agZZxZFx9");
 
 #[program]
 pub mod airnote_vault {
