@@ -52,13 +52,21 @@ class DeveloperToolsActivity : AppCompatActivity() {
                     val result = ProbeEngine(this@DeveloperToolsActivity).run()
                     latestReport = result.report
                     runCatching {
-                        AirnoteProofJournal(this@DeveloperToolsActivity).record(
-                            type = if (result.verdict == ProbeEngine.Verdict.PASS) {
-                                AirnoteProofEventType.STRONGBOX_PROBE_PASS
-                            } else {
-                                AirnoteProofEventType.STRONGBOX_PROBE_NOT_PASS
-                            },
-                            detail = "Gate 00 verdict=${result.verdict}; StrongBox requested=true",
+                        val journal = AirnoteProofJournal(this@DeveloperToolsActivity)
+                        val p256Observed = result.report.contains("Security level: STRONGBOX") &&
+                            result.report.contains("Hardware backed: true") &&
+                            result.report.contains("SIGNATURE 1\nResult: SUCCESS") &&
+                            result.report.contains("Local verification: true")
+                        if (p256Observed) {
+                            journal.record(
+                                type = AirnoteProofEventType.STRONGBOX_P256_OBSERVED,
+                                detail = "StrongBox secp256r1/P-256 key was hardware-backed and produced a locally verified signature; one-use verdict=${result.verdict}",
+                                captureConnectivity = false
+                            )
+                        }
+                        journal.record(
+                            type = AirnoteProofEventType.HARDWARE_ONE_USE_PROBE_RESULT,
+                            detail = "Gate 00 hardware one-use verdict=${result.verdict}; this is separate from StrongBox P-256 availability",
                             captureConnectivity = false
                         )
                     }
