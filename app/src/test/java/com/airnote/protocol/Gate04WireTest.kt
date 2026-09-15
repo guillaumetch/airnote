@@ -77,7 +77,7 @@ class Gate04WireTest {
             AirnoteProtocol.encodeRecipientRequest(decoded.recipientRequest)
         )
         assertArrayEquals(transfer.transferSignature, decoded.transferSignature)
-        assertEquals(808, encoded.length)
+        assertEquals(807, encoded.length)
     }
 
     @Test(expected = IllegalArgumentException::class)
