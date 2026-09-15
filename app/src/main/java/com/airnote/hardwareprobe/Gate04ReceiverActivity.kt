@@ -24,12 +24,15 @@ import java.security.SecureRandom
 
 class Gate04ReceiverActivity : AppCompatActivity() {
     private lateinit var walletInput: EditText
+    private lateinit var phase: TextView
     private lateinit var status: TextView
     private lateinit var qr: ImageView
     private lateinit var scanTransferButton: Button
+    private lateinit var openPaymentButton: Button
     private lateinit var copyAcceptedButton: Button
     private var currentRequest: AirnoteProtocol.RecipientRequest? = null
     private var acceptedPayload: String? = null
+    private var acceptedPaymentId: String? = null
 
     private val transferScanner = registerForActivityResult(ScanContract()) { result ->
         val contents = result.contents ?: return@registerForActivityResult
@@ -51,31 +54,46 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_HORIZONTAL
         })
         root.addView(TextView(this).apply {
-            text = "1. Confirm the Solana wallet that should receive USDC.\n2. Show your request QR to the sender.\n3. Scan their signed payment QR.\nInternet is not required for the handoff."
-            textSize = 15f
-            setPadding(0, 20, 0, 12)
+            text = "Two scans. No internet required."
+            textSize = 16f
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, 4, 0, 24)
         })
 
+        phase = TextView(this).apply {
+            text = "SCAN 1 OF 2  •  CREATE YOUR REQUEST"
+            textSize = 18f
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, 8, 0, 20)
+        }
+        root.addView(phase)
+
         walletInput = EditText(this).apply {
-            hint = "Recipient Solana wallet"
+            hint = "Solana wallet that will receive USDC"
             setSingleLine(true)
             setText(prefs.getString(KEY_WALLET, ""))
         }
         root.addView(walletInput)
 
         root.addView(Button(this).apply {
-            text = "SHOW RECEIVE REQUEST"
+            text = "SHOW REQUEST QR — 1 OF 2"
             setOnClickListener { generateRequest() }
         })
 
+        qr = ImageView(this).apply {
+            adjustViewBounds = true
+            setPadding(0, 24, 0, 24)
+        }
+        root.addView(qr)
+
         scanTransferButton = Button(this).apply {
-            text = "SCAN SIGNED PAYMENT"
+            text = "SCAN PAYMENT — 2 OF 2"
             isEnabled = false
             setOnClickListener {
                 transferScanner.launch(
                     ScanOptions()
                         .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                        .setPrompt("Scan signed AIRNOTE payment")
+                        .setPrompt("Scan 2 of 2 • signed Airnote payment")
                         .setBeepEnabled(false)
                         .setOrientationLocked(false)
                 )
@@ -83,13 +101,34 @@ class Gate04ReceiverActivity : AppCompatActivity() {
         }
         root.addView(scanTransferButton)
 
+        openPaymentButton = Button(this).apply {
+            text = "OPEN PAYMENT / SETTLE"
+            isEnabled = false
+            setOnClickListener {
+                val id = acceptedPaymentId ?: return@setOnClickListener
+                startActivity(
+                    Intent(this@Gate04ReceiverActivity, AirnotePaymentDetailActivity::class.java)
+                        .putExtra(AirnotePaymentDetailActivity.EXTRA_PAYMENT_ID, id)
+                )
+            }
+        }
+        root.addView(openPaymentButton)
+
         root.addView(Button(this).apply {
-            text = "VIEW ACTIVITY"
+            text = "VIEW ALL ACTIVITY"
             setOnClickListener { startActivity(Intent(this@Gate04ReceiverActivity, AirnoteHistoryActivity::class.java)) }
         })
 
+        status = TextView(this).apply {
+            text = "Enter your Solana wallet and create the first QR."
+            textSize = 15f
+            setTextIsSelectable(true)
+            setPadding(0, 12, 0, 12)
+        }
+        root.addView(status)
+
         copyAcceptedButton = Button(this).apply {
-            text = "COPY SETTLEMENT PAYLOAD"
+            text = "TECHNICAL • COPY SETTLEMENT PAYLOAD"
             isEnabled = false
             setOnClickListener {
                 val payload = acceptedPayload ?: return@setOnClickListener
@@ -98,20 +137,6 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             }
         }
         root.addView(copyAcceptedButton)
-
-        qr = ImageView(this).apply {
-            adjustViewBounds = true
-            setPadding(0, 24, 0, 24)
-        }
-        root.addView(qr)
-
-        status = TextView(this).apply {
-            text = "Create a receive request to begin."
-            textSize = 14f
-            typeface = android.graphics.Typeface.MONOSPACE
-            setTextIsSelectable(true)
-        }
-        root.addView(status)
 
         setContentView(ScrollView(this).apply { addView(root) })
     }
@@ -130,20 +155,27 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             )
             currentRequest = request
             acceptedPayload = null
+            acceptedPaymentId = null
             copyAcceptedButton.isEnabled = false
+            openPaymentButton.isEnabled = false
             val encoded = Gate04Wire.encodeRequestQr(request)
             qr.setImageBitmap(QrSupport.render(encoded))
             scanTransferButton.isEnabled = true
+            phase.text = "SCAN 1 OF 2  •  SHOW THIS QR"
             status.text = buildString {
-                appendLine("RECEIVE REQUEST READY")
-                appendLine("Wallet: $walletText")
-                appendLine("Request expires: ${request.requestExpiresAtUnixSeconds}")
+                appendLine("REQUEST READY")
                 appendLine()
-                appendLine("Show this QR to the sender. This expiry protects handoff freshness only.")
+                appendLine("Show this QR to the sender.")
+                appendLine("They scan it to bind the Airnote to this wallet:")
+                appendLine(walletText)
+                appendLine()
+                appendLine("Then tap SCAN PAYMENT — 2 OF 2 and scan the QR they show back to you.")
+                append("Internet is not required for either scan.")
             }
         }.onFailure { error ->
             currentRequest = null
             scanTransferButton.isEnabled = false
+            phase.text = "SCAN 1 OF 2  •  CREATE YOUR REQUEST"
             status.text = "REQUEST FAILED\n${error.message ?: error::class.java.simpleName}"
         }
     }
@@ -158,8 +190,9 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             val commitment = check.noteCommitment ?: error("verified transfer missing commitment")
             val commitmentHex = commitment.hex()
             val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+            val store = AirnotePaymentStore(this)
 
-            val existing = AirnotePaymentStore(this).get(commitmentHex)
+            val existing = store.get(commitmentHex)
             if (existing == null) {
                 require(!prefs.contains("accepted:$commitmentHex")) { "LOCAL DUPLICATE: this Airnote was already accepted on this receiver" }
                 prefs.edit()
@@ -167,7 +200,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                     .putLong("accepted_at:$commitmentHex", now())
                     .apply()
                 java.io.File(filesDir, "gate04-accepted-$commitmentHex.txt").writeText(scanned.trim())
-                AirnotePaymentStore(this).recordReceived(
+                store.recordReceived(
                     id = commitmentHex,
                     amountBaseUnits = transfer.airnote.mintCore.amountBaseUnits,
                     createdAtUnixSeconds = now(),
@@ -178,23 +211,27 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             }
 
             acceptedPayload = scanned.trim()
+            acceptedPaymentId = commitmentHex
             copyAcceptedButton.isEnabled = true
+            openPaymentButton.isEnabled = true
+            scanTransferButton.isEnabled = false
             qr.setImageDrawable(null)
+            phase.text = "OFFLINE HANDOFF COMPLETE  ✓"
             status.text = buildString {
-                appendLine(if (existing == null) "AIRNOTE RECEIVED ✓" else "AIRNOTE ALREADY RECEIVED ✓")
-                appendLine("WAITING TO SETTLE")
+                appendLine(if (existing == null) "AIRNOTE RECEIVED" else "AIRNOTE ALREADY RECEIVED")
+                appendLine("${transfer.airnote.mintCore.amountBaseUnits / 1_000_000.0} USDC")
                 appendLine()
-                appendLine("Amount: ${transfer.airnote.mintCore.amountBaseUnits / 1_000_000.0} USDC")
-                appendLine("Commitment: $commitmentHex")
-                appendLine("Backing certificate: VERIFIED")
-                appendLine("Recipient binding: VERIFIED")
-                appendLine("StrongBox P-256 signature: VERIFIED")
-                appendLine("Local duplicate check: PASS")
+                appendLine("Backing certificate verified.")
+                appendLine("Recipient binding verified.")
+                appendLine("StrongBox P-256 authorization verified.")
+                appendLine("Duplicate protection passed.")
                 appendLine()
                 appendLine("No network was required for acceptance.")
-                appendLine("This Airnote is now saved in Activity and remains pending until Solana settlement.")
+                appendLine()
+                append("When you are online, open this payment and settle it on Solana.")
             }
         }.onFailure { error ->
+            phase.text = "PAYMENT NOT ACCEPTED"
             status.text = "PAYMENT REJECTED\n${error.message ?: error::class.java.simpleName}"
         }
     }
