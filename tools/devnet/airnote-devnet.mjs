@@ -47,6 +47,16 @@ Usage:
     [--risk-tier <0..3>] \\
     [--rpc <URL>]
 
+  node airnote-devnet.mjs mint-request \\
+    --program <PROGRAM_ID> \\
+    --wallet <SOLANA_KEYPAIR_JSON> \\
+    --request <SENDER_MINT_REQUEST_TXT> \\
+    [--risk-tier <0..3>] \\
+    [--rpc <URL>]
+
+mint-request takes amount, lifetime, note id, owner P-256 key and attestation digest
+from the Seeker-generated sender request. The sender-selected lifetime is authoritative.
+
 This tool reads a local Solana keypair file. It never prints the secret key.`);
   process.exit(message ? 2 : 0);
 }
@@ -79,6 +89,36 @@ function readKeypair(filename) {
     throw new Error(`wallet file must contain a 64-byte Solana secret key array: ${full}`);
   }
   return Keypair.fromSecretKey(Uint8Array.from(secret));
+}
+
+function readSenderMintRequest(filename) {
+  const full = expandHome(filename);
+  const text = fs.readFileSync(full, "utf8");
+  if (!text.startsWith("AIRNOTE — SENDER MINT REQUEST")) {
+    throw new Error("request file is not an AIRNOTE sender mint request");
+  }
+  const fields = {};
+  for (const line of text.split(/\r?\n/)) {
+    const split = line.indexOf("=");
+    if (split <= 0) continue;
+    const key = line.slice(0, split).trim();
+    const value = line.slice(split + 1).trim();
+    if (key && value) fields[key] = value;
+  }
+  for (const key of [
+    "AMOUNT_USDC",
+    "LIFETIME_SECONDS",
+    "NOTE_ID_HEX",
+    "OWNER_P256_COMPRESSED_HEX",
+    "DEVICE_ATTESTATION_DIGEST_HEX",
+  ]) {
+    if (!fields[key]) throw new Error(`sender mint request missing ${key}`);
+  }
+  const lifetime = Number(fields.LIFETIME_SECONDS);
+  if (!Number.isInteger(lifetime) || lifetime < 300 || lifetime > 86_400) {
+    throw new Error("sender mint request lifetime must be between 300 and 86400 seconds");
+  }
+  return fields;
 }
 
 function discriminator(label) {
@@ -299,6 +339,7 @@ async function commandMint(options) {
     usdc_mint: DEVNET_USDC.toBase58(),
     amount_usdc: amountUsdc,
     amount_base_units: amountBaseUnits.toString(),
+    requested_lifetime_seconds: lifetime,
     note_id_hex: noteId.toString("hex"),
     note_account: note.toBase58(),
     vault_account: vault.toBase58(),
@@ -311,12 +352,28 @@ async function commandMint(options) {
   }, null, 2));
 }
 
+async function commandMintRequest(options) {
+  const fields = readSenderMintRequest(required(options, "request"));
+  return commandMint({
+    program: required(options, "program"),
+    wallet: required(options, "wallet"),
+    rpc: options.rpc,
+    "risk-tier": options["risk-tier"] ?? "1",
+    "note-id": fields.NOTE_ID_HEX,
+    "owner-p256": fields.OWNER_P256_COMPRESSED_HEX,
+    "attestation-digest": fields.DEVICE_ATTESTATION_DIGEST_HEX,
+    "amount-usdc": fields.AMOUNT_USDC,
+    "lifetime-seconds": fields.LIFETIME_SECONDS,
+  });
+}
+
 async function main() {
   const command = process.argv[2];
   if (!command || command === "help" || command === "--help" || command === "-h") usage();
   const options = parseOptions(process.argv.slice(3));
   if (command === "init") return commandInit(options);
   if (command === "mint") return commandMint(options);
+  if (command === "mint-request") return commandMintRequest(options);
   usage(`unknown command ${command}`);
 }
 
