@@ -1,8 +1,8 @@
 package com.airnote.hardwareprobe
 
 enum class AirnoteProofEventType {
-    STRONGBOX_PROBE_PASS,
-    STRONGBOX_PROBE_NOT_PASS,
+    STRONGBOX_P256_OBSERVED,
+    HARDWARE_ONE_USE_PROBE_RESULT,
     RECEIVER_REQUEST_QR_READY,
     SENDER_SIGNED_TRANSFER_QR_READY,
     OFFLINE_TRANSFER_ACCEPTED,
@@ -34,7 +34,7 @@ data class AirnoteProofCheck(
 object AirnoteProofChecklist {
     fun evaluate(events: List<AirnoteProofEvent>): List<AirnoteProofCheck> {
         val ordered = events.sortedBy { it.timestampUnixSeconds }
-        val strongBox = ordered.lastOrNull { it.type == AirnoteProofEventType.STRONGBOX_PROBE_PASS }
+        val strongBoxP256 = ordered.lastOrNull { it.type == AirnoteProofEventType.STRONGBOX_P256_OBSERVED }
 
         val offlineAccepted = ordered.lastOrNull { accepted ->
             if (accepted.type != AirnoteProofEventType.OFFLINE_TRANSFER_ACCEPTED || accepted.validatedInternet != false) return@lastOrNull false
@@ -73,9 +73,9 @@ object AirnoteProofChecklist {
 
         return listOf(
             AirnoteProofCheck(
-                "StrongBox hardware probe",
-                strongBox != null,
-                strongBox?.detail ?: "No passing StrongBox probe recorded on this device."
+                "StrongBox-backed P-256 signing observed",
+                strongBoxP256 != null,
+                strongBoxP256?.detail ?: "No hardware-backed StrongBox secp256r1 signing evidence recorded on this device."
             ),
             AirnoteProofCheck(
                 "Two-scan handoff observed offline",
