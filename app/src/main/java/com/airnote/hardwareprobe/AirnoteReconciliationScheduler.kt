@@ -22,7 +22,9 @@ object AirnoteReconciliationScheduler {
             .setBackoffCriteria(BackoffPolicy.LINEAR, 15, TimeUnit.SECONDS)
             .build()
 
+        // A newly received or newly submitted Airnote is newer state than any queued sweep.
+        // Replace the old one so the next connected run necessarily sees the latest store contents.
         WorkManager.getInstance(context.applicationContext)
-            .enqueueUniqueWork(UNIQUE_WORK, ExistingWorkPolicy.KEEP, request)
+            .enqueueUniqueWork(UNIQUE_WORK, ExistingWorkPolicy.REPLACE, request)
     }
 }
