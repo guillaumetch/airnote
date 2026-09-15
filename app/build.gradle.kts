@@ -46,8 +46,14 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.activity:activity-ktx:1.10.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     implementation("com.google.zxing:core:3.5.3")
+
+    // Gate 09: native Seeker settlement. MWA keeps Solana private keys in the user's wallet.
+    implementation("com.solanamobile:mobile-wallet-adapter-clientlib-ktx:2.0.7")
+    implementation("com.solanamobile:web3-solana:0.3.2-beta6")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.bouncycastle:bcprov-jdk18on:1.79")
