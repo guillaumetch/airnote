@@ -52,8 +52,8 @@ dependencies {
 
     // Gate 09: native Seeker settlement. MWA keeps Solana private keys in the user's wallet.
     implementation("com.solanamobile:mobile-wallet-adapter-clientlib-ktx:2.0.7")
-    implementation("com.solanamobile:web3-solana:0.3.2-beta6")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation("com.solanamobile:web3-solana:0.2.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.bouncycastle:bcprov-jdk18on:1.79")
