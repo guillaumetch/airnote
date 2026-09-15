@@ -59,7 +59,8 @@ class AirnotePaymentStore(context: Context) {
     fun markSubmitted(
         id: String,
         signature: String,
-        nowUnixSeconds: Long = System.currentTimeMillis() / 1000L
+        nowUnixSeconds: Long = System.currentTimeMillis() / 1000L,
+        lastValidBlockHeight: Long? = null
     ): AirnotePayment {
         require(signature.isNotBlank()) { "settlement signature is empty" }
         val current = requireNotNull(get(id)) { "unknown AIRNOTE payment $id" }
@@ -69,7 +70,11 @@ class AirnotePaymentStore(context: Context) {
             PaymentStatus.SETTLING -> current
             else -> error("payment is not ready to submit from ${current.status}")
         }
-        val submitted = settling.copy(settlementSignature = signature, errorCode = null)
+        val submitted = settling.copy(
+            settlementSignature = signature,
+            settlementLastValidBlockHeight = lastValidBlockHeight,
+            errorCode = null
+        )
         save(submitted)
         AirnoteReconciliationScheduler.enqueue(appContext)
         return submitted
@@ -140,8 +145,8 @@ class AirnotePaymentStore(context: Context) {
     }
 
     /**
-     * A chain status explicitly proved the previous submission failed. Clear the signature so a
-     * later user-initiated retry is allowed to build and submit a fresh transaction.
+     * A chain status explicitly proved the previous submission failed. Clear the signature and
+     * blockhash horizon so a later user-authorized retry can construct a fresh transaction.
      */
     fun markSubmissionFailed(id: String, errorCode: String, nowUnixSeconds: Long = System.currentTimeMillis() / 1000L): AirnotePayment {
         val current = requireNotNull(get(id)) { "unknown AIRNOTE payment $id" }
@@ -152,7 +157,11 @@ class AirnotePaymentStore(context: Context) {
             else -> error("payment is not in a submitted settlement state")
         }
         val failed = PaymentLifecycle.transition(settling, PaymentStatus.FAILED_RETRYABLE, nowUnixSeconds)
-            .copy(settlementSignature = null, errorCode = errorCode)
+            .copy(
+                settlementSignature = null,
+                settlementLastValidBlockHeight = null,
+                errorCode = errorCode
+            )
         save(failed)
         return failed
     }
@@ -168,7 +177,11 @@ class AirnotePaymentStore(context: Context) {
             require(current.settlementSignature == signature) {
                 "cannot reconcile expired payment from an unrelated transaction"
             }
-            val reconciled = current.copy(settlementSignature = null, errorCode = errorCode)
+            val reconciled = current.copy(
+                settlementSignature = null,
+                settlementLastValidBlockHeight = null,
+                errorCode = errorCode
+            )
             save(reconciled)
             return reconciled
         }
@@ -200,6 +213,7 @@ class AirnotePaymentStore(context: Context) {
         put("status", payment.status.name)
         put("counterparty", payment.counterparty ?: JSONObject.NULL)
         put("settlementSignature", payment.settlementSignature ?: JSONObject.NULL)
+        put("settlementLastValidBlockHeight", payment.settlementLastValidBlockHeight ?: JSONObject.NULL)
         put("lastSettlementAttempt", payment.lastSettlementAttemptUnixSeconds ?: JSONObject.NULL)
         put("retryCount", payment.retryCount)
         put("errorCode", payment.errorCode ?: JSONObject.NULL)
@@ -217,6 +231,7 @@ class AirnotePaymentStore(context: Context) {
             status = PaymentStatus.valueOf(json.getString("status")),
             counterparty = json.optStringOrNull("counterparty"),
             settlementSignature = json.optStringOrNull("settlementSignature"),
+            settlementLastValidBlockHeight = if (!json.has("settlementLastValidBlockHeight") || json.isNull("settlementLastValidBlockHeight")) null else json.getLong("settlementLastValidBlockHeight"),
             lastSettlementAttemptUnixSeconds = if (json.isNull("lastSettlementAttempt")) null else json.getLong("lastSettlementAttempt"),
             retryCount = json.optInt("retryCount", 0),
             errorCode = json.optStringOrNull("errorCode"),
