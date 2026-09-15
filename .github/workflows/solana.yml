@@ -2,7 +2,7 @@ name: Solana AIRNOTE
 
 on:
   pull_request:
-    branches: [ gate-01-note-protocol, gate-02-solana-vault ]
+    branches: [ gate-01-note-protocol, gate-02-solana-vault, gate-03-mint-airnotes ]
 
 jobs:
   rust-tests:
@@ -33,10 +33,12 @@ jobs:
       - name: Devnet helper checks
         run: |
           node --check tools/devnet/airnote-devnet.mjs
+          node --check tools/devnet/redeem-airnote.mjs
           bash -n tools/devnet/bootstrap-program.sh
           bash -n tools/devnet/certify-airnote.sh
           npm install --prefix tools/devnet --ignore-scripts --no-audit --no-fund
           node tools/devnet/airnote-devnet.mjs help >/dev/null
+          node tools/devnet/redeem-airnote.mjs --help >/dev/null
 
       - name: Check isolated LiteSVM harness
         run: |
