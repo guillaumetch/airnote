@@ -3,6 +3,7 @@ package com.airnote.hardwareprobe
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
@@ -82,6 +83,11 @@ class Gate04ReceiverActivity : AppCompatActivity() {
         }
         root.addView(scanTransferButton)
 
+        root.addView(Button(this).apply {
+            text = "VIEW ACTIVITY"
+            setOnClickListener { startActivity(Intent(this@Gate04ReceiverActivity, AirnoteHistoryActivity::class.java)) }
+        })
+
         copyAcceptedButton = Button(this).apply {
             text = "COPY SETTLEMENT PAYLOAD"
             isEnabled = false
@@ -152,22 +158,33 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             val commitment = check.noteCommitment ?: error("verified transfer missing commitment")
             val commitmentHex = commitment.hex()
             val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
-            require(!prefs.contains("accepted:$commitmentHex")) { "LOCAL DUPLICATE: this Airnote was already accepted on this receiver" }
 
-            prefs.edit()
-                .putString("accepted:$commitmentHex", scanned.trim())
-                .putLong("accepted_at:$commitmentHex", now())
-                .apply()
-            val file = java.io.File(filesDir, "gate04-accepted-$commitmentHex.txt")
-            file.writeText(scanned.trim())
+            val existing = AirnotePaymentStore(this).get(commitmentHex)
+            if (existing == null) {
+                require(!prefs.contains("accepted:$commitmentHex")) { "LOCAL DUPLICATE: this Airnote was already accepted on this receiver" }
+                prefs.edit()
+                    .putString("accepted:$commitmentHex", scanned.trim())
+                    .putLong("accepted_at:$commitmentHex", now())
+                    .apply()
+                java.io.File(filesDir, "gate04-accepted-$commitmentHex.txt").writeText(scanned.trim())
+                AirnotePaymentStore(this).recordReceived(
+                    id = commitmentHex,
+                    amountBaseUnits = transfer.airnote.mintCore.amountBaseUnits,
+                    createdAtUnixSeconds = now(),
+                    expiresAtUnixSeconds = transfer.airnote.mintCore.expiresAtUnixSeconds,
+                    counterparty = walletInput.text.toString().trim(),
+                    protocolPayload = scanned.trim()
+                )
+            }
+
             acceptedPayload = scanned.trim()
             copyAcceptedButton.isEnabled = true
             qr.setImageDrawable(null)
             status.text = buildString {
-                appendLine("ACCEPTED OFFLINE ✓")
-                appendLine("PENDING SOLANA SETTLEMENT")
+                appendLine(if (existing == null) "AIRNOTE RECEIVED ✓" else "AIRNOTE ALREADY RECEIVED ✓")
+                appendLine("WAITING TO SETTLE")
                 appendLine()
-                appendLine("Amount: ${transfer.airnote.mintCore.amountBaseUnits / 1_000_000} USDC")
+                appendLine("Amount: ${transfer.airnote.mintCore.amountBaseUnits / 1_000_000.0} USDC")
                 appendLine("Commitment: $commitmentHex")
                 appendLine("Backing certificate: VERIFIED")
                 appendLine("Recipient binding: VERIFIED")
@@ -175,7 +192,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                 appendLine("Local duplicate check: PASS")
                 appendLine()
                 appendLine("No network was required for acceptance.")
-                appendLine("Reconnect when ready to settle on Solana.")
+                appendLine("This Airnote is now saved in Activity and remains pending until Solana settlement.")
             }
         }.onFailure { error ->
             status.text = "PAYMENT REJECTED\n${error.message ?: error::class.java.simpleName}"

@@ -8,6 +8,12 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AirnoteProbe">
         <activity
+            android:name=".AirnotePaymentDetailActivity"
+            android:exported="false" />
+        <activity
+            android:name=".AirnoteHistoryActivity"
+            android:exported="false" />
+        <activity
             android:name=".DeveloperToolsActivity"
             android:exported="false" />
         <activity
