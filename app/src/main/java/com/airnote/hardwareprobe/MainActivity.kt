@@ -1,8 +1,5 @@
 package com.airnote.hardwareprobe
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.text.InputType
@@ -19,33 +16,52 @@ import java.io.File
 import java.time.Instant
 
 class MainActivity : AppCompatActivity() {
-    private lateinit var reportView: TextView
     private lateinit var createPreviewView: TextView
-    private var latestReport: String = "AIRNOTE is ready. Create, send, or receive below."
+    private lateinit var activityView: TextView
     private var selectedAmountUsdc = 1
     private var selectedLifetimeSeconds = SenderLifetimePolicy.DEFAULT_SECONDS
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        title = "AIRNOTE"
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(32, 32, 32, 32)
+            setPadding(36, 36, 36, 56)
         }
 
         root.addView(TextView(this).apply {
-            text = "AIRNOTE\nSeeker Lab"
-            textSize = 28f
+            text = "AIRNOTE"
+            textSize = 32f
             gravity = Gravity.CENTER_HORIZONTAL
+        })
+        root.addView(TextView(this).apply {
+            text = "Offline USDC on Solana"
+            textSize = 16f
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, 4, 0, 28)
+        })
+
+        root.addView(TextView(this).apply {
+            text = "PAY OFFLINE"
+            textSize = 13f
+        })
+        root.addView(Button(this).apply {
+            text = "SEND AIRNOTE"
+            setOnClickListener { startActivity(Intent(this@MainActivity, Gate04SenderActivity::class.java)) }
+        })
+        root.addView(Button(this).apply {
+            text = "RECEIVE AIRNOTE"
+            setOnClickListener { startActivity(Intent(this@MainActivity, Gate04ReceiverActivity::class.java)) }
         })
 
         root.addView(TextView(this).apply {
             text = "CREATE AIRNOTE"
             textSize = 20f
-            setPadding(0, 24, 0, 4)
+            setPadding(0, 30, 0, 4)
         })
         root.addView(TextView(this).apply {
-            text = "Sender chooses the note value and how long the funded Airnote remains redeemable."
+            text = "Choose the value and how long this Airnote can settle after it is funded."
             textSize = 14f
             setPadding(0, 0, 0, 12)
         })
@@ -53,7 +69,7 @@ class MainActivity : AppCompatActivity() {
         val amountRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         listOf(1, 5, 10).forEach { amount ->
             amountRow.addView(Button(this).apply {
-                text = "$$amount"
+                text = "$${amount}"
                 setOnClickListener {
                     selectedAmountUsdc = amount
                     refreshCreatePreview()
@@ -79,12 +95,12 @@ class MainActivity : AppCompatActivity() {
         root.addView(lifetimeRowTwo)
 
         val customMinutes = EditText(this).apply {
-            hint = "Custom lifetime in minutes (5–1440)"
+            hint = "Custom minutes (5–1440)"
             inputType = InputType.TYPE_CLASS_NUMBER
         }
         root.addView(customMinutes)
         root.addView(Button(this).apply {
-            text = "APPLY CUSTOM LIFETIME"
+            text = "USE CUSTOM LIFETIME"
             setOnClickListener {
                 val minutes = customMinutes.text.toString().toLongOrNull()
                 val lifetime = runCatching {
@@ -106,25 +122,37 @@ class MainActivity : AppCompatActivity() {
         root.addView(createPreviewView)
 
         val createAirnote = Button(this).apply {
-            text = "CREATE AIRNOTE OWNER KEY"
+            text = "CREATE AIRNOTE"
             setOnClickListener {
                 isEnabled = false
-                reportView.text = "Creating persistent StrongBox note-owner key…"
+                text = "CREATING STRONGBOX KEY…"
                 val amount = selectedAmountUsdc
                 val lifetimeSeconds = selectedLifetimeSeconds
                 Thread {
-                    latestReport = runCatching {
+                    val result = runCatching {
                         val material = NoteOwnerKeyManager(this@MainActivity).create()
                         buildSenderMintRequest(material, amount, lifetimeSeconds)
-                    }.getOrElse { t ->
-                        "AIRNOTE — CREATE FAILED\n\n${t::class.java.name}: ${t.message.orEmpty()}"
                     }
                     runOnUiThread {
-                        reportView.text = latestReport
-                        if (latestReport.startsWith("AIRNOTE — SENDER MINT REQUEST")) {
-                            val file = persistMintRequest(latestReport)
-                            Toast.makeText(this@MainActivity, "Mint request saved: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+                        result.onSuccess { request ->
+                            val file = persistMintRequest(request)
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Airnote prepared. Funding request saved locally.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            refreshLocalActivity()
+                            val shortId = Regex("NOTE_ID_HEX=([0-9a-f]{64})")
+                                .find(request)?.groupValues?.get(1)?.take(12) ?: "created"
+                            activityView.text = "READY TO FUND\n$amount USDC • ${SenderLifetimePolicy.lifetime(lifetimeSeconds).label}\nNote $shortId…\n${file.name}"
+                        }.onFailure { t ->
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Create failed: ${t.message ?: t::class.java.simpleName}",
+                                Toast.LENGTH_LONG
+                            ).show()
                         }
+                        text = "CREATE AIRNOTE"
                         isEnabled = true
                     }
                 }.start()
@@ -133,93 +161,34 @@ class MainActivity : AppCompatActivity() {
         root.addView(createAirnote)
 
         root.addView(TextView(this).apply {
-            text = "TRANSFER"
+            text = "LOCAL ACTIVITY"
             textSize = 20f
-            setPadding(0, 28, 0, 4)
+            setPadding(0, 30, 0, 4)
         })
-        root.addView(Button(this).apply {
-            text = "SEND AIRNOTE — SEEKER A"
-            setOnClickListener { startActivity(Intent(this@MainActivity, Gate04SenderActivity::class.java)) }
-        })
-        root.addView(Button(this).apply {
-            text = "RECEIVE AIRNOTE — SEEKER B"
-            setOnClickListener { startActivity(Intent(this@MainActivity, Gate04ReceiverActivity::class.java)) }
-        })
-
-        val runGate00 = Button(this).apply {
-            text = "RUN GATE 00 HARDWARE PROBE"
-            setOnClickListener {
-                isEnabled = false
-                reportView.text = "Running Gate 00 hardware probe…"
-                Thread {
-                    val result = ProbeEngine(this@MainActivity).run()
-                    latestReport = result.report
-                    runOnUiThread {
-                        reportView.text = latestReport
-                        isEnabled = true
-                    }
-                }.start()
-            }
+        activityView = TextView(this).apply {
+            textSize = 14f
+            setPadding(0, 8, 0, 12)
         }
-        root.addView(runGate00)
-
-        val createRawKey = Button(this).apply {
-            text = "CREATE RAW NOTE OWNER — LAB"
-            setOnClickListener {
-                isEnabled = false
-                reportView.text = "Creating persistent StrongBox note-owner key…"
-                Thread {
-                    latestReport = runCatching {
-                        NoteOwnerKeyManager(this@MainActivity).create().report()
-                    }.getOrElse { t ->
-                        "AIRNOTE — NOTE OWNER\n\nFAIL\n${t::class.java.name}: ${t.message.orEmpty()}"
-                    }
-                    runOnUiThread {
-                        reportView.text = latestReport
-                        isEnabled = true
-                    }
-                }.start()
-            }
-        }
-        root.addView(createRawKey)
+        root.addView(activityView)
 
         root.addView(Button(this).apply {
-            text = "RESET VIEW"
-            setOnClickListener {
-                latestReport = "AIRNOTE is ready. Create, send, or receive above."
-                reportView.text = latestReport
-            }
+            text = "REFRESH LOCAL STATUS"
+            setOnClickListener { refreshLocalActivity() }
         })
 
         root.addView(Button(this).apply {
-            text = "COPY REPORT"
-            setOnClickListener {
-                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(ClipData.newPlainText("AIRNOTE report", latestReport))
-                Toast.makeText(this@MainActivity, "Report copied", Toast.LENGTH_SHORT).show()
-            }
+            text = "DEVELOPER TOOLS"
+            setOnClickListener { startActivity(Intent(this@MainActivity, DeveloperToolsActivity::class.java)) }
         })
-
-        root.addView(Button(this).apply {
-            text = "EXPORT REPORT"
-            setOnClickListener {
-                val file = File(getExternalFilesDir(null), "airnote-report.txt")
-                file.writeText(latestReport)
-                Toast.makeText(this@MainActivity, "Saved: ${file.absolutePath}", Toast.LENGTH_LONG).show()
-            }
-        })
-
-        reportView = TextView(this).apply {
-            text = latestReport
-            setTextIsSelectable(true)
-            textSize = 13f
-            typeface = android.graphics.Typeface.MONOSPACE
-            setPadding(0, 24, 0, 48)
-        }
-        root.addView(reportView)
 
         setContentView(ScrollView(this).apply { addView(root) })
         refreshCreatePreview()
+        refreshLocalActivity()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::activityView.isInitialized) refreshLocalActivity()
     }
 
     private fun refreshCreatePreview() {
@@ -227,9 +196,25 @@ class MainActivity : AppCompatActivity() {
         val lifetime = SenderLifetimePolicy.lifetime(selectedLifetimeSeconds)
         createPreviewView.text = buildString {
             appendLine("$selectedAmountUsdc USDC • ${lifetime.label}")
-            appendLine("Risk window: ${lifetime.exposureLabel}")
+            appendLine("Offline exposure: ${lifetime.exposureLabel}")
             appendLine("Estimated expiry: ${Instant.now().plusSeconds(lifetime.seconds)}")
-            append("Receiver request expiry is separate and only controls handoff freshness.")
+            append("Receiver request TTL is separate and only protects handoff freshness.")
+        }
+    }
+
+    private fun refreshLocalActivity() {
+        if (!::activityView.isInitialized) return
+        val prefs = getSharedPreferences("airnote_gate04", MODE_PRIVATE)
+        val accepted = prefs.all.keys.count { it.startsWith("accepted:") }
+        val mintRequests = getExternalFilesDir(null)
+            ?.listFiles()
+            .orEmpty()
+            .count { it.name.startsWith("airnote-mint-request-") }
+        activityView.text = buildString {
+            appendLine("Pending offline acceptances: $accepted")
+            appendLine("Prepared sender notes: $mintRequests")
+            appendLine()
+            append("Settlement remains final on Solana.")
         }
     }
 

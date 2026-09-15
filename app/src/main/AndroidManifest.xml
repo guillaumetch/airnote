@@ -8,6 +8,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AirnoteProbe">
         <activity
+            android:name=".DeveloperToolsActivity"
+            android:exported="false" />
+        <activity
             android:name=".Gate04SenderActivity"
             android:exported="false" />
         <activity

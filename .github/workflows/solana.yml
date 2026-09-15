@@ -2,7 +2,7 @@ name: Solana AIRNOTE
 
 on:
   pull_request:
-    branches: [ gate-01-note-protocol, gate-02-solana-vault, gate-03-mint-airnotes, gate-04-offline-transfer, gate-05-delayed-settlement ]
+    branches: [ gate-01-note-protocol, gate-02-solana-vault, gate-03-mint-airnotes, gate-04-offline-transfer, gate-05-delayed-settlement, gate-06-sender-lifetime ]
 
 jobs:
   rust-tests:
