@@ -22,7 +22,7 @@ class PaymentLifecycleTest {
         value = PaymentLifecycle.transition(value, PaymentStatus.SETTLING, 120)
         value = PaymentLifecycle.transition(value, PaymentStatus.SETTLED, 130)
         assertEquals(PaymentStatus.SETTLED, value.status)
-        assertEquals(120, value.lastSettlementAttemptUnixSeconds)
+        assertEquals(120L, value.lastSettlementAttemptUnixSeconds)
     }
 
     @Test
@@ -42,7 +42,7 @@ class PaymentLifecycleTest {
         value = PaymentLifecycle.transition(value, PaymentStatus.FAILED_RETRYABLE, 121)
         value = PaymentLifecycle.transition(value, PaymentStatus.SETTLING, 130)
         assertEquals(1, value.retryCount)
-        assertEquals(130, value.lastSettlementAttemptUnixSeconds)
+        assertEquals(130L, value.lastSettlementAttemptUnixSeconds)
     }
 
     @Test
