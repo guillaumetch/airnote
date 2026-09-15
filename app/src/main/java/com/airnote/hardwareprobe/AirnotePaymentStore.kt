@@ -5,7 +5,8 @@ import android.util.Base64
 import org.json.JSONObject
 
 class AirnotePaymentStore(context: Context) {
-    private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     fun all(): List<AirnotePayment> = prefs.all.entries
         .asSequence()
@@ -37,6 +38,7 @@ class AirnotePaymentStore(context: Context) {
         )
         val pending = PaymentLifecycle.transition(accepted, PaymentStatus.PENDING, createdAtUnixSeconds)
         save(pending)
+        AirnoteReconciliationScheduler.enqueue(appContext)
         return pending
     }
 
@@ -50,14 +52,15 @@ class AirnotePaymentStore(context: Context) {
     /**
      * Persist the Solana signature before waiting for finalization.
      *
-     * This is the local idempotency fence for Gate 09: after the wallet reports submission, an
-     * app restart or RPC timeout reconciles this exact signature instead of constructing a fresh
+     * This is the local idempotency fence: after the wallet reports submission, an app restart,
+     * process death, or RPC timeout reconciles this exact signature instead of constructing a fresh
      * redemption transaction.
      */
     fun markSubmitted(
         id: String,
         signature: String,
-        nowUnixSeconds: Long = System.currentTimeMillis() / 1000L
+        nowUnixSeconds: Long = System.currentTimeMillis() / 1000L,
+        lastValidBlockHeight: Long? = null
     ): AirnotePayment {
         require(signature.isNotBlank()) { "settlement signature is empty" }
         val current = requireNotNull(get(id)) { "unknown AIRNOTE payment $id" }
@@ -67,13 +70,24 @@ class AirnotePaymentStore(context: Context) {
             PaymentStatus.SETTLING -> current
             else -> error("payment is not ready to submit from ${current.status}")
         }
-        val submitted = settling.copy(settlementSignature = signature, errorCode = null)
+        val submitted = settling.copy(
+            settlementSignature = signature,
+            settlementLastValidBlockHeight = lastValidBlockHeight,
+            errorCode = null
+        )
         save(submitted)
+        AirnoteReconciliationScheduler.enqueue(appContext)
         return submitted
     }
 
     fun markSettled(id: String, signature: String, nowUnixSeconds: Long = System.currentTimeMillis() / 1000L): AirnotePayment {
         val current = requireNotNull(get(id)) { "unknown AIRNOTE payment $id" }
+        if (current.status == PaymentStatus.SETTLED) {
+            require(current.settlementSignature == signature) {
+                "settled payment has a different Solana signature"
+            }
+            return current
+        }
         require(current.status in setOf(PaymentStatus.SETTLING, PaymentStatus.PENDING, PaymentStatus.FAILED_RETRYABLE)) {
             "payment is not ready to settle"
         }
@@ -88,6 +102,32 @@ class AirnotePaymentStore(context: Context) {
         return settled
     }
 
+    /**
+     * Chain finality is authoritative. This additionally repairs Gate 09/10 local data that may have
+     * guessed EXPIRED while a known transaction signature was still unresolved.
+     */
+    fun reconcileFinalized(
+        id: String,
+        signature: String,
+        nowUnixSeconds: Long = System.currentTimeMillis() / 1000L
+    ): AirnotePayment {
+        val current = requireNotNull(get(id)) { "unknown AIRNOTE payment $id" }
+        if (current.status == PaymentStatus.EXPIRED) {
+            require(current.settlementSignature == signature) {
+                "cannot repair expired payment from an unrelated transaction"
+            }
+            val repaired = current.copy(
+                status = PaymentStatus.SETTLED,
+                settlementSignature = signature,
+                errorCode = null,
+                lastSettlementAttemptUnixSeconds = current.lastSettlementAttemptUnixSeconds ?: nowUnixSeconds
+            )
+            save(repaired)
+            return repaired
+        }
+        return markSettled(id, signature, nowUnixSeconds)
+    }
+
     /** Temporary failure where a submitted signature may still be live. Preserve that signature. */
     fun markRetryableFailure(id: String, errorCode: String, nowUnixSeconds: Long = System.currentTimeMillis() / 1000L): AirnotePayment {
         val current = requireNotNull(get(id)) { "unknown AIRNOTE payment $id" }
@@ -100,12 +140,13 @@ class AirnotePaymentStore(context: Context) {
         val failed = PaymentLifecycle.transition(settling, PaymentStatus.FAILED_RETRYABLE, nowUnixSeconds)
             .copy(errorCode = errorCode)
         save(failed)
+        if (failed.settlementSignature != null) AirnoteReconciliationScheduler.enqueue(appContext)
         return failed
     }
 
     /**
-     * A chain status explicitly proved the previous submission failed. Clear the signature so a
-     * later user-initiated retry is allowed to build and submit a fresh transaction.
+     * A chain status explicitly proved the previous submission failed. Clear the signature and
+     * blockhash horizon so a later user-authorized retry can construct a fresh transaction.
      */
     fun markSubmissionFailed(id: String, errorCode: String, nowUnixSeconds: Long = System.currentTimeMillis() / 1000L): AirnotePayment {
         val current = requireNotNull(get(id)) { "unknown AIRNOTE payment $id" }
@@ -116,14 +157,41 @@ class AirnotePaymentStore(context: Context) {
             else -> error("payment is not in a submitted settlement state")
         }
         val failed = PaymentLifecycle.transition(settling, PaymentStatus.FAILED_RETRYABLE, nowUnixSeconds)
-            .copy(settlementSignature = null, errorCode = errorCode)
+            .copy(
+                settlementSignature = null,
+                settlementLastValidBlockHeight = null,
+                errorCode = errorCode
+            )
         save(failed)
         return failed
+    }
+
+    fun reconcileSubmissionFailed(
+        id: String,
+        signature: String,
+        errorCode: String,
+        nowUnixSeconds: Long = System.currentTimeMillis() / 1000L
+    ): AirnotePayment {
+        val current = requireNotNull(get(id)) { "unknown AIRNOTE payment $id" }
+        if (current.status == PaymentStatus.EXPIRED) {
+            require(current.settlementSignature == signature) {
+                "cannot reconcile expired payment from an unrelated transaction"
+            }
+            val reconciled = current.copy(
+                settlementSignature = null,
+                settlementLastValidBlockHeight = null,
+                errorCode = errorCode
+            )
+            save(reconciled)
+            return reconciled
+        }
+        return markSubmissionFailed(id, errorCode, nowUnixSeconds)
     }
 
     fun expireDue(nowUnixSeconds: Long = System.currentTimeMillis() / 1000L) {
         all().filter {
             it.status !in setOf(PaymentStatus.SETTLED, PaymentStatus.REJECTED, PaymentStatus.EXPIRED) &&
+                !AirnoteReconciliationPolicy.shouldDeferLocalExpiry(it) &&
                 nowUnixSeconds >= it.expiresAtUnixSeconds
         }.forEach { payment ->
             if (PaymentLifecycle.canTransition(payment.status, PaymentStatus.EXPIRED)) {
@@ -145,6 +213,7 @@ class AirnotePaymentStore(context: Context) {
         put("status", payment.status.name)
         put("counterparty", payment.counterparty ?: JSONObject.NULL)
         put("settlementSignature", payment.settlementSignature ?: JSONObject.NULL)
+        put("settlementLastValidBlockHeight", payment.settlementLastValidBlockHeight ?: JSONObject.NULL)
         put("lastSettlementAttempt", payment.lastSettlementAttemptUnixSeconds ?: JSONObject.NULL)
         put("retryCount", payment.retryCount)
         put("errorCode", payment.errorCode ?: JSONObject.NULL)
@@ -162,6 +231,7 @@ class AirnotePaymentStore(context: Context) {
             status = PaymentStatus.valueOf(json.getString("status")),
             counterparty = json.optStringOrNull("counterparty"),
             settlementSignature = json.optStringOrNull("settlementSignature"),
+            settlementLastValidBlockHeight = if (!json.has("settlementLastValidBlockHeight") || json.isNull("settlementLastValidBlockHeight")) null else json.getLong("settlementLastValidBlockHeight"),
             lastSettlementAttemptUnixSeconds = if (json.isNull("lastSettlementAttempt")) null else json.getLong("lastSettlementAttempt"),
             retryCount = json.optInt("retryCount", 0),
             errorCode = json.optStringOrNull("errorCode"),

@@ -88,7 +88,11 @@ class AirnoteSettlementCoordinator(
         }
 
         // Critical ordering: persist before waiting for RPC. Process death after this point is safe.
-        store.markSubmitted(paymentId, signature)
+        store.markSubmitted(
+            paymentId,
+            signature,
+            lastValidBlockHeight = plan.lastValidBlockHeight
+        )
 
         return try {
             val finalized = rpc.awaitFinalized(signature)

@@ -9,11 +9,11 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Deliberately small Solana JSON-RPC client for Gate 09.
+ * Deliberately small Solana JSON-RPC client.
  *
- * The wallet submits the signed transaction through Mobile Wallet Adapter. AIRNOTE only uses
- * its own RPC connection to obtain a recent blockhash, validate the known note account/chain
- * clock, and independently wait for finalization before showing Settled.
+ * The wallet submits the signed transaction through Mobile Wallet Adapter. AIRNOTE uses its own
+ * RPC connection to obtain a recent blockhash, validate note state / chain time, and independently
+ * observe finalization.
  */
 class AirnoteSolanaRpc(
     private val rpcUrl: String = DEFAULT_DEVNET_RPC
@@ -26,6 +26,18 @@ class AirnoteSolanaRpc(
 
     data class FinalizedSignature(
         val slot: Long
+    )
+
+    enum class SignatureState {
+        PENDING,
+        FINALIZED,
+        FAILED
+    }
+
+    data class SignatureObservation(
+        val state: SignatureState,
+        val slot: Long? = null,
+        val error: String? = null
     )
 
     suspend fun latestBlockhash(): LatestBlockhash {
@@ -64,27 +76,54 @@ class AirnoteSolanaRpc(
         return (blockTime as Number).toLong()
     }
 
+    suspend fun finalizedBlockHeight(): Long =
+        (call(
+            "getBlockHeight",
+            JSONArray().put(JSONObject().put("commitment", "finalized"))
+        ) as Number).toLong()
+
+    /** One RPC observation suitable for WorkManager/background reconciliation. */
+    suspend fun signatureObservation(signature: String): SignatureObservation {
+        val result = call(
+            "getSignatureStatuses",
+            JSONArray()
+                .put(JSONArray().put(signature))
+                .put(JSONObject().put("searchTransactionHistory", true))
+        ) as JSONObject
+        val values = result.getJSONArray("value")
+        if (values.isNull(0)) return SignatureObservation(SignatureState.PENDING)
+
+        val status = values.getJSONObject(0)
+        if (status.has("err") && !status.isNull("err")) {
+            return SignatureObservation(
+                state = SignatureState.FAILED,
+                slot = status.optLong("slot").takeIf { it > 0L },
+                error = status.get("err").toString()
+            )
+        }
+        if (status.optString("confirmationStatus") == "finalized") {
+            return SignatureObservation(
+                state = SignatureState.FINALIZED,
+                slot = status.getLong("slot")
+            )
+        }
+        return SignatureObservation(
+            state = SignatureState.PENDING,
+            slot = status.optLong("slot").takeIf { it > 0L }
+        )
+    }
+
     suspend fun awaitFinalized(
         signature: String,
         timeoutMillis: Long = FINALIZATION_TIMEOUT_MS
     ): FinalizedSignature {
         val started = System.currentTimeMillis()
         while (System.currentTimeMillis() - started < timeoutMillis) {
-            val result = call(
-                "getSignatureStatuses",
-                JSONArray()
-                    .put(JSONArray().put(signature))
-                    .put(JSONObject().put("searchTransactionHistory", true))
-            ) as JSONObject
-            val values = result.getJSONArray("value")
-            if (!values.isNull(0)) {
-                val status = values.getJSONObject(0)
-                if (status.has("err") && !status.isNull("err")) {
-                    throw TransactionFailedException(status.get("err").toString())
-                }
-                if (status.optString("confirmationStatus") == "finalized") {
-                    return FinalizedSignature(status.getLong("slot"))
-                }
+            val observation = signatureObservation(signature)
+            when (observation.state) {
+                SignatureState.FINALIZED -> return FinalizedSignature(requireNotNull(observation.slot))
+                SignatureState.FAILED -> throw TransactionFailedException(observation.error ?: "unknown chain error")
+                SignatureState.PENDING -> Unit
             }
             delay(POLL_INTERVAL_MS)
         }

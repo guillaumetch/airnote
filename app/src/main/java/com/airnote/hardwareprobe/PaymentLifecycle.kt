@@ -22,6 +22,7 @@ data class AirnotePayment(
     val status: PaymentStatus,
     val counterparty: String? = null,
     val settlementSignature: String? = null,
+    val settlementLastValidBlockHeight: Long? = null,
     val lastSettlementAttemptUnixSeconds: Long? = null,
     val retryCount: Int = 0,
     val errorCode: String? = null,
