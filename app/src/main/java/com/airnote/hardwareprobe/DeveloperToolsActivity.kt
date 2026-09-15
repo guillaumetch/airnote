@@ -3,6 +3,7 @@ package com.airnote.hardwareprobe
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import android.widget.LinearLayout
@@ -35,6 +36,13 @@ class DeveloperToolsActivity : AppCompatActivity() {
             setPadding(0, 8, 0, 20)
         })
 
+        root.addView(Button(this).apply {
+            text = "SEEKER PHYSICAL PROOF"
+            setOnClickListener {
+                startActivity(Intent(this@DeveloperToolsActivity, AirnoteProofActivity::class.java))
+            }
+        })
+
         val runGate00 = Button(this).apply {
             text = "RUN STRONGBOX HARDWARE PROBE"
             setOnClickListener {
@@ -43,6 +51,17 @@ class DeveloperToolsActivity : AppCompatActivity() {
                 Thread {
                     val result = ProbeEngine(this@DeveloperToolsActivity).run()
                     latestReport = result.report
+                    runCatching {
+                        AirnoteProofJournal(this@DeveloperToolsActivity).record(
+                            type = if (result.verdict == ProbeEngine.Verdict.PASS) {
+                                AirnoteProofEventType.STRONGBOX_PROBE_PASS
+                            } else {
+                                AirnoteProofEventType.STRONGBOX_PROBE_NOT_PASS
+                            },
+                            detail = "Gate 00 verdict=${result.verdict}; StrongBox requested=true",
+                            captureConnectivity = false
+                        )
+                    }
                     runOnUiThread {
                         reportView.text = latestReport
                         isEnabled = true
