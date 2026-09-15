@@ -80,7 +80,10 @@ class AirnotePaymentDetailActivity : AppCompatActivity() {
                     text = if (payment.settlementSignature == null) "OPENING SOLANA WALLET…" else "CHECKING SOLANA…"
                     lifecycleScope.launch {
                         val result = runCatching {
-                            AirnoteSettlementCoordinator(store).settle(
+                            AirnoteSettlementCoordinator(
+                                store = store,
+                                proofJournal = AirnoteProofJournal(this@AirnotePaymentDetailActivity)
+                            ).settle(
                                 id,
                                 ActivityResultSender(this@AirnotePaymentDetailActivity)
                             )
