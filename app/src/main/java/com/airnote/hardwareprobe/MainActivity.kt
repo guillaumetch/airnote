@@ -1,6 +1,8 @@
 package com.airnote.hardwareprobe
 
+import android.Manifest
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
@@ -10,6 +12,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.airnote.protocol.SenderLifetimePolicy
 import java.io.File
@@ -20,6 +23,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var activityView: TextView
     private var selectedAmountUsdc = 1
     private var selectedLifetimeSeconds = SenderLifetimePolicy.DEFAULT_SECONDS
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        Toast.makeText(
+            this,
+            if (granted) "Settlement alerts enabled" else "Settlement alerts remain off",
+            Toast.LENGTH_SHORT
+        ).show()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,6 +75,20 @@ class MainActivity : AppCompatActivity() {
         root.addView(Button(this).apply {
             text = "ACTIVITY"
             setOnClickListener { startActivity(Intent(this@MainActivity, AirnoteHistoryActivity::class.java)) }
+        })
+
+        if (Build.VERSION.SDK_INT >= 33 && !AirnoteNotifications.canNotify(this)) {
+            root.addView(Button(this).apply {
+                text = "ENABLE SETTLEMENT ALERTS"
+                setOnClickListener {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            })
+        }
+        root.addView(TextView(this).apply {
+            text = "When connectivity returns, AIRNOTE can alert you when an offline payment is ready to settle and automatically reconcile transactions that were already submitted. Wallet approval is never performed in the background."
+            textSize = 13f
+            setPadding(0, 4, 0, 12)
         })
 
         root.addView(TextView(this).apply {
@@ -193,11 +220,13 @@ class MainActivity : AppCompatActivity() {
         setContentView(ScrollView(this).apply { addView(root) })
         refreshCreatePreview()
         refreshLocalActivity()
+        AirnoteReconciliationScheduler.enqueue(this)
     }
 
     override fun onResume() {
         super.onResume()
         if (::activityView.isInitialized) refreshLocalActivity()
+        AirnoteReconciliationScheduler.enqueue(this)
     }
 
     private fun refreshCreatePreview() {
@@ -217,6 +246,7 @@ class MainActivity : AppCompatActivity() {
         store.expireDue()
         val payments = store.all()
         val pending = payments.count { it.status in setOf(PaymentStatus.ACCEPTED_OFFLINE, PaymentStatus.PENDING, PaymentStatus.SETTLING, PaymentStatus.FAILED_RETRYABLE) }
+        val submitted = payments.count { it.settlementSignature != null && it.status != PaymentStatus.SETTLED }
         val settled = payments.count { it.status == PaymentStatus.SETTLED }
         val mintRequests = getExternalFilesDir(null)
             ?.listFiles()
@@ -224,10 +254,11 @@ class MainActivity : AppCompatActivity() {
             .count { it.name.startsWith("airnote-mint-request-") }
         activityView.text = buildString {
             appendLine("Pending settlement: $pending")
+            appendLine("Submitted / reconciling: $submitted")
             appendLine("Settled: $settled")
             appendLine("Prepared sender notes: $mintRequests")
             appendLine()
-            append("Offline acceptance is local. Settlement remains final on Solana.")
+            append("Offline acceptance is local. Submitted transactions reconcile against Solana when connectivity is available.")
         }
     }
 
