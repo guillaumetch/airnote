@@ -27,4 +27,15 @@ object AirnoteReconciliationPolicy {
                 PaymentStatus.SETTLING,
                 PaymentStatus.FAILED_RETRYABLE
             )
+
+    fun isSubmittedBlockhashDefinitelyExpired(
+        payment: AirnotePayment,
+        finalizedBlockHeight: Long,
+        workerAttempt: Int
+    ): Boolean {
+        val lastValid = payment.settlementLastValidBlockHeight ?: return false
+        return payment.settlementSignature != null &&
+            workerAttempt > 0 &&
+            finalizedBlockHeight > lastValid
+    }
 }
