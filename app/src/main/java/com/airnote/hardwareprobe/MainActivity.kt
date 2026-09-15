@@ -3,6 +3,7 @@ package com.airnote.hardwareprobe
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
 import android.widget.Button
@@ -15,7 +16,7 @@ import java.io.File
 
 class MainActivity : AppCompatActivity() {
     private lateinit var reportView: TextView
-    private var latestReport: String = "AIRNOTE is ready. Run Gate 00 or create a Gate 03 note-owner key."
+    private var latestReport: String = "AIRNOTE is ready. Gate 04 uses SEND and RECEIVE below."
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -26,9 +27,18 @@ class MainActivity : AppCompatActivity() {
         }
 
         root.addView(TextView(this).apply {
-            text = "AIRNOTE\nSeeker Security Lab"
+            text = "AIRNOTE\nSeeker Lab"
             textSize = 28f
             gravity = Gravity.CENTER_HORIZONTAL
+        })
+
+        root.addView(Button(this).apply {
+            text = "SEND AIRNOTE — SEEKER A"
+            setOnClickListener { startActivity(Intent(this@MainActivity, Gate04SenderActivity::class.java)) }
+        })
+        root.addView(Button(this).apply {
+            text = "RECEIVE AIRNOTE — SEEKER B"
+            setOnClickListener { startActivity(Intent(this@MainActivity, Gate04ReceiverActivity::class.java)) }
         })
 
         val runGate00 = Button(this).apply {
@@ -71,7 +81,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(Button(this).apply {
             text = "RESET VIEW"
             setOnClickListener {
-                latestReport = "AIRNOTE is ready. Run Gate 00 or create a Gate 03 note-owner key."
+                latestReport = "AIRNOTE is ready. Gate 04 uses SEND and RECEIVE above."
                 reportView.text = latestReport
             }
         })
