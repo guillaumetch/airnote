@@ -76,6 +76,12 @@ class AirnoteSolanaRpc(
         return (blockTime as Number).toLong()
     }
 
+    suspend fun finalizedBlockHeight(): Long =
+        (call(
+            "getBlockHeight",
+            JSONArray().put(JSONObject().put("commitment", "finalized"))
+        ) as Number).toLong()
+
     /** One RPC observation suitable for WorkManager/background reconciliation. */
     suspend fun signatureObservation(signature: String): SignatureObservation {
         val result = call(
