@@ -41,10 +41,15 @@ class AirnoteReconciliationWorker(
 
                     AirnoteSolanaRpc.SignatureState.PENDING -> {
                         val lastValidBlockHeight = payment.settlementLastValidBlockHeight
-                        if (lastValidBlockHeight != null && runAttemptCount > 0) {
+                        if (lastValidBlockHeight != null) {
                             val currentHeight = finalizedBlockHeight
                                 ?: rpc.finalizedBlockHeight().also { finalizedBlockHeight = it }
-                            if (currentHeight > lastValidBlockHeight) {
+                            if (AirnoteReconciliationPolicy.isSubmittedBlockhashDefinitelyExpired(
+                                    payment,
+                                    currentHeight,
+                                    runAttemptCount
+                                )
+                            ) {
                                 handleDefinitiveFailure(
                                     store = store,
                                     payment = payment,
