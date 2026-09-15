@@ -46,11 +46,25 @@ class AirnoteSettlementCoordinator(
             store.transition(paymentId, PaymentStatus.SETTLING)
         }
 
-        val submission = try {
+        // Do RPC, PDA and expiry work before opening a wallet association. The wallet session should
+        // only prove the bound recipient and authorize a transaction that is already prepared.
+        val plan = try {
+            AirnoteSettlementBuilder.prepare(payload, rpc)
+        } catch (error: AirnoteSettlementBuilder.AirnoteExpiredException) {
+            if (PaymentLifecycle.canTransition(store.get(paymentId)!!.status, PaymentStatus.EXPIRED)) {
+                store.transition(paymentId, PaymentStatus.EXPIRED)
+            }
+            throw error
+        } catch (error: Throwable) {
+            markRetryableIfPossible(paymentId, error)
+            throw error
+        }
+
+        val signature = try {
             when (val result = walletAdapter.transact(sender) { authResult ->
                 val wallet = authResult.accounts.firstOrNull()?.publicKey
                     ?: error("wallet authorization returned no account")
-                val plan = AirnoteSettlementBuilder.prepare(payload, wallet, rpc)
+                AirnoteSettlementBuilder.requireAuthorizedRecipient(plan, wallet)
                 val params = TransactionParams(
                     minContextSlot = plan.minContextSlot,
                     commitment = "confirmed",
@@ -62,29 +76,24 @@ class AirnoteSettlementCoordinator(
                     arrayOf(plan.unsignedTransaction),
                     params
                 ).signatures.firstOrNull() ?: error("wallet returned no transaction signature")
-                Submission(Base58.encode(signatureBytes), plan)
+                Base58.encode(signatureBytes)
             }) {
                 is TransactionResult.Success -> result.payload
                 is TransactionResult.NoWalletFound -> throw WalletUnavailableException(result.message)
                 is TransactionResult.Failure -> throw WalletSubmissionException(result.message, result.e)
             }
-        } catch (error: AirnoteSettlementBuilder.AirnoteExpiredException) {
-            if (PaymentLifecycle.canTransition(store.get(paymentId)!!.status, PaymentStatus.EXPIRED)) {
-                store.transition(paymentId, PaymentStatus.EXPIRED)
-            }
-            throw error
         } catch (error: Throwable) {
             markRetryableIfPossible(paymentId, error)
             throw error
         }
 
         // Critical ordering: persist before waiting for RPC. Process death after this point is safe.
-        store.markSubmitted(paymentId, submission.signature)
+        store.markSubmitted(paymentId, signature)
 
         return try {
-            val finalized = rpc.awaitFinalized(submission.signature)
-            val settled = store.markSettled(paymentId, submission.signature)
-            SettlementResult(settled, submission.signature, finalized.slot)
+            val finalized = rpc.awaitFinalized(signature)
+            val settled = store.markSettled(paymentId, signature)
+            SettlementResult(settled, signature, finalized.slot)
         } catch (error: AirnoteSolanaRpc.TransactionFailedException) {
             // Chain explicitly proved failure, so a later fresh submission is safe.
             store.markSubmissionFailed(paymentId, "CHAIN_REJECTED")
@@ -131,11 +140,6 @@ class AirnoteSettlementCoordinator(
         is AirnoteSolanaRpc.RpcException -> "RPC_UNAVAILABLE"
         else -> error::class.java.simpleName.uppercase().take(64).ifBlank { "SETTLEMENT_ERROR" }
     }
-
-    private data class Submission(
-        val signature: String,
-        val plan: AirnoteSettlementBuilder.Plan
-    )
 
     class WalletUnavailableException(message: String) : Exception(message)
     class WalletSubmissionException(message: String, cause: Throwable) : Exception(message, cause)
