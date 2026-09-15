@@ -1,7 +1,7 @@
 package com.airnote.protocol
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFailsWith
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class SenderLifetimePolicyTest {
@@ -16,8 +16,8 @@ class SenderLifetimePolicyTest {
         assertEquals(300L, SenderLifetimePolicy.fromMinutes(5).seconds)
         assertEquals(5400L, SenderLifetimePolicy.fromMinutes(90).seconds)
         assertEquals(86400L, SenderLifetimePolicy.fromMinutes(1440).seconds)
-        assertFailsWith<IllegalArgumentException> { SenderLifetimePolicy.fromMinutes(4) }
-        assertFailsWith<IllegalArgumentException> { SenderLifetimePolicy.fromMinutes(1441) }
+        assertThrows(IllegalArgumentException::class.java) { SenderLifetimePolicy.fromMinutes(4) }
+        assertThrows(IllegalArgumentException::class.java) { SenderLifetimePolicy.fromMinutes(1441) }
     }
 
     @Test
