@@ -16,7 +16,7 @@ import java.io.File
 
 class MainActivity : AppCompatActivity() {
     private lateinit var reportView: TextView
-    private var latestReport: String = "AIRNOTE is ready. Gate 04 uses SEND and RECEIVE below."
+    private var latestReport: String = "AIRNOTE is ready. Create, send, or receive below."
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,6 +32,10 @@ class MainActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_HORIZONTAL
         })
 
+        root.addView(Button(this).apply {
+            text = "CREATE AIRNOTE — SENDER"
+            setOnClickListener { startActivity(Intent(this@MainActivity, CreateAirnoteActivity::class.java)) }
+        })
         root.addView(Button(this).apply {
             text = "SEND AIRNOTE — SEEKER A"
             setOnClickListener { startActivity(Intent(this@MainActivity, Gate04SenderActivity::class.java)) }
@@ -59,7 +63,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(runGate00)
 
         val createGate03Key = Button(this).apply {
-            text = "CREATE GATE 03 NOTE OWNER"
+            text = "CREATE RAW NOTE OWNER — LAB"
             setOnClickListener {
                 isEnabled = false
                 reportView.text = "Creating persistent StrongBox note-owner key…"
@@ -67,7 +71,7 @@ class MainActivity : AppCompatActivity() {
                     latestReport = runCatching {
                         NoteOwnerKeyManager(this@MainActivity).create().report()
                     }.getOrElse { t ->
-                        "AIRNOTE — GATE 03 NOTE OWNER\n\nFAIL\n${t::class.java.name}: ${t.message.orEmpty()}"
+                        "AIRNOTE — NOTE OWNER\n\nFAIL\n${t::class.java.name}: ${t.message.orEmpty()}"
                     }
                     runOnUiThread {
                         reportView.text = latestReport
@@ -81,7 +85,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(Button(this).apply {
             text = "RESET VIEW"
             setOnClickListener {
-                latestReport = "AIRNOTE is ready. Gate 04 uses SEND and RECEIVE above."
+                latestReport = "AIRNOTE is ready. Create, send, or receive above."
                 reportView.text = latestReport
             }
         })
