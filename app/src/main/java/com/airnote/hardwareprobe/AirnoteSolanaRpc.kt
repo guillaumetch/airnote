@@ -55,7 +55,10 @@ class AirnoteSolanaRpc(
     }
 
     suspend fun finalizedChainTimeSeconds(): Long {
-        val slot = (call("getSlot", JSONArray().put("finalized")) as Number).toLong()
+        val slot = (call(
+            "getSlot",
+            JSONArray().put(JSONObject().put("commitment", "finalized"))
+        ) as Number).toLong()
         val blockTime = call("getBlockTime", JSONArray().put(slot))
         require(blockTime != JSONObject.NULL) { "Solana finalized block time unavailable for slot $slot" }
         return (blockTime as Number).toLong()
