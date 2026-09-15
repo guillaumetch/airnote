@@ -21,6 +21,7 @@ import com.airnote.protocol.Gate04Wire
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import java.security.SecureRandom
+import java.util.UUID
 
 class Gate04ReceiverActivity : AppCompatActivity() {
     private lateinit var walletInput: EditText
@@ -31,6 +32,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
     private lateinit var openPaymentButton: Button
     private lateinit var copyAcceptedButton: Button
     private var currentRequest: AirnoteProtocol.RecipientRequest? = null
+    private var handoffSessionId: String? = null
     private var acceptedPayload: String? = null
     private var acceptedPaymentId: String? = null
 
@@ -147,6 +149,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             val wallet = Base58.decode32(walletText, "recipient wallet")
             getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_WALLET, walletText).apply()
             val created = now()
+            val sessionId = UUID.randomUUID().toString()
             val request = AirnoteProtocol.RecipientRequest(
                 recipientSolanaWallet = wallet,
                 recipientNonce = ByteArray(32).also { SecureRandom().nextBytes(it) },
@@ -154,6 +157,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                 requestExpiresAtUnixSeconds = created + Gate04Verifier.REQUEST_MAX_LIFETIME_SECONDS
             )
             currentRequest = request
+            handoffSessionId = sessionId
             acceptedPayload = null
             acceptedPaymentId = null
             copyAcceptedButton.isEnabled = false
@@ -161,6 +165,13 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             val encoded = Gate04Wire.encodeRequestQr(request)
             qr.setImageBitmap(QrSupport.render(encoded))
             scanTransferButton.isEnabled = true
+            runCatching {
+                AirnoteProofJournal(this).record(
+                    type = AirnoteProofEventType.RECEIVER_REQUEST_QR_READY,
+                    handoffSessionId = sessionId,
+                    detail = "Receiver request QR created; request TTL=${Gate04Verifier.REQUEST_MAX_LIFETIME_SECONDS}s"
+                )
+            }
             phase.text = "SCAN 1 OF 2  •  SHOW THIS QR"
             status.text = buildString {
                 appendLine("REQUEST READY")
@@ -174,6 +185,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             }
         }.onFailure { error ->
             currentRequest = null
+            handoffSessionId = null
             scanTransferButton.isEnabled = false
             phase.text = "SCAN 1 OF 2  •  CREATE YOUR REQUEST"
             status.text = "REQUEST FAILED\n${error.message ?: error::class.java.simpleName}"
@@ -207,6 +219,15 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                     expiresAtUnixSeconds = transfer.airnote.mintCore.expiresAtUnixSeconds,
                     counterparty = walletInput.text.toString().trim(),
                     protocolPayload = scanned.trim()
+                )
+            }
+
+            runCatching {
+                AirnoteProofJournal(this).record(
+                    type = AirnoteProofEventType.OFFLINE_TRANSFER_ACCEPTED,
+                    handoffSessionId = handoffSessionId,
+                    paymentId = commitmentHex,
+                    detail = "Certificate, recipient binding, P-256 authorization, and duplicate guard verified; amount_base_units=${transfer.airnote.mintCore.amountBaseUnits}"
                 )
             }
 
