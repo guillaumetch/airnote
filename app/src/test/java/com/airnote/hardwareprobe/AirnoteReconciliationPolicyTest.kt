@@ -9,6 +9,7 @@ class AirnoteReconciliationPolicyTest {
         status: PaymentStatus = PaymentStatus.PENDING,
         direction: PaymentDirection = PaymentDirection.RECEIVED,
         signature: String? = null,
+        lastValidBlockHeight: Long? = null,
         expiresAt: Long = 2_000L,
         payload: String? = "payload"
     ) = AirnotePayment(
@@ -19,6 +20,7 @@ class AirnoteReconciliationPolicyTest {
         expiresAtUnixSeconds = expiresAt,
         status = status,
         settlementSignature = signature,
+        settlementLastValidBlockHeight = lastValidBlockHeight,
         protocolPayload = payload
     )
 
@@ -41,6 +43,36 @@ class AirnoteReconciliationPolicyTest {
         val expired = payment(status = PaymentStatus.EXPIRED, signature = "solana-signature")
         assertTrue(AirnoteReconciliationPolicy.shouldReconcileSubmitted(expired))
         assertFalse(AirnoteReconciliationPolicy.shouldDeferLocalExpiry(expired))
+    }
+
+    @Test
+    fun blockhashExpiryRequiresASecondObservationPastLastValidHeight() {
+        val submitted = payment(
+            status = PaymentStatus.SETTLING,
+            signature = "solana-signature",
+            lastValidBlockHeight = 10_000L
+        )
+        assertFalse(
+            AirnoteReconciliationPolicy.isSubmittedBlockhashDefinitelyExpired(
+                submitted,
+                finalizedBlockHeight = 10_001L,
+                workerAttempt = 0
+            )
+        )
+        assertFalse(
+            AirnoteReconciliationPolicy.isSubmittedBlockhashDefinitelyExpired(
+                submitted,
+                finalizedBlockHeight = 10_000L,
+                workerAttempt = 1
+            )
+        )
+        assertTrue(
+            AirnoteReconciliationPolicy.isSubmittedBlockhashDefinitelyExpired(
+                submitted,
+                finalizedBlockHeight = 10_001L,
+                workerAttempt = 1
+            )
+        )
     }
 
     @Test
