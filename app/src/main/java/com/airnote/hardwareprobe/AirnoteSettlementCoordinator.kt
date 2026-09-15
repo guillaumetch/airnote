@@ -21,7 +21,8 @@ import com.solana.mobilewalletadapter.clientlib.TransactionResult
 class AirnoteSettlementCoordinator(
     private val store: AirnotePaymentStore,
     private val rpc: AirnoteSolanaRpc = AirnoteSolanaRpc(),
-    private val walletAdapter: MobileWalletAdapter = defaultWalletAdapter()
+    private val walletAdapter: MobileWalletAdapter = defaultWalletAdapter(),
+    private val proofJournal: AirnoteProofJournal? = null
 ) {
     data class SettlementResult(
         val payment: AirnotePayment,
@@ -65,6 +66,13 @@ class AirnoteSettlementCoordinator(
                 val wallet = authResult.accounts.firstOrNull()?.publicKey
                     ?: error("wallet authorization returned no account")
                 AirnoteSettlementBuilder.requireAuthorizedRecipient(plan, wallet)
+                runCatching {
+                    proofJournal?.record(
+                        type = AirnoteProofEventType.MWA_RECIPIENT_AUTHORIZED,
+                        paymentId = paymentId,
+                        detail = "MWA account matched the recipient bound into the offline transfer"
+                    )
+                }
                 val params = TransactionParams(
                     minContextSlot = plan.minContextSlot,
                     commitment = "confirmed",
@@ -93,14 +101,38 @@ class AirnoteSettlementCoordinator(
             signature,
             lastValidBlockHeight = plan.lastValidBlockHeight
         )
+        runCatching {
+            proofJournal?.record(
+                type = AirnoteProofEventType.SETTLEMENT_SUBMITTED,
+                paymentId = paymentId,
+                transactionSignature = signature,
+                detail = "last_valid_block_height=${plan.lastValidBlockHeight}"
+            )
+        }
 
         return try {
             val finalized = rpc.awaitFinalized(signature)
             val settled = store.markSettled(paymentId, signature)
+            runCatching {
+                proofJournal?.record(
+                    type = AirnoteProofEventType.SETTLEMENT_FINALIZED_FOREGROUND,
+                    paymentId = paymentId,
+                    transactionSignature = signature,
+                    detail = "finalized_slot=${finalized.slot}"
+                )
+            }
             SettlementResult(settled, signature, finalized.slot)
         } catch (error: AirnoteSolanaRpc.TransactionFailedException) {
             // Chain explicitly proved failure, so a later fresh submission is safe.
             store.markSubmissionFailed(paymentId, "CHAIN_REJECTED")
+            runCatching {
+                proofJournal?.record(
+                    type = AirnoteProofEventType.SETTLEMENT_DEFINITIVE_FAILURE,
+                    paymentId = paymentId,
+                    transactionSignature = signature,
+                    detail = "foreground_chain_rejected"
+                )
+            }
             throw error
         } catch (error: Throwable) {
             // Signature may still land. Preserve it so the next tap reconciles rather than resubmits.
@@ -117,9 +149,25 @@ class AirnoteSettlementCoordinator(
         return try {
             val finalized = rpc.awaitFinalized(signature)
             val settled = store.markSettled(paymentId, signature)
+            runCatching {
+                proofJournal?.record(
+                    type = AirnoteProofEventType.SETTLEMENT_FINALIZED_FOREGROUND,
+                    paymentId = paymentId,
+                    transactionSignature = signature,
+                    detail = "reconciled_existing_signature; finalized_slot=${finalized.slot}"
+                )
+            }
             SettlementResult(settled, signature, finalized.slot)
         } catch (error: AirnoteSolanaRpc.TransactionFailedException) {
             store.markSubmissionFailed(paymentId, "CHAIN_REJECTED")
+            runCatching {
+                proofJournal?.record(
+                    type = AirnoteProofEventType.SETTLEMENT_DEFINITIVE_FAILURE,
+                    paymentId = paymentId,
+                    transactionSignature = signature,
+                    detail = "foreground_reconciliation_chain_rejected"
+                )
+            }
             throw error
         } catch (error: Throwable) {
             markRetryableIfPossible(paymentId, error)
