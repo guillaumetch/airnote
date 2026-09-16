@@ -8,23 +8,29 @@ import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.widget.Button
-import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.airnote.protocol.AirnoteProtocol
 import com.airnote.protocol.Base58
 import com.airnote.protocol.Gate04Verifier
 import com.airnote.protocol.Gate04Wire
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
+import com.solana.mobilewalletadapter.clientlib.ActivityResultSender
+import com.solana.mobilewalletadapter.clientlib.TransactionResult
+import kotlinx.coroutines.launch
 import java.security.SecureRandom
 import java.util.UUID
 
 class Gate04ReceiverActivity : AppCompatActivity() {
-    private lateinit var walletInput: EditText
+    private lateinit var walletBindingStore: AirnoteReceiveWalletBindingStore
+    private lateinit var walletStatus: TextView
+    private lateinit var selectWalletButton: Button
+    private lateinit var requestButton: Button
     private lateinit var phase: TextView
     private lateinit var status: TextView
     private lateinit var qr: ImageView
@@ -44,8 +50,8 @@ class Gate04ReceiverActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         title = "AIRNOTE — Receive"
+        walletBindingStore = AirnoteReceiveWalletBindingStore(this)
 
-        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(32, 32, 32, 48)
@@ -70,17 +76,25 @@ class Gate04ReceiverActivity : AppCompatActivity() {
         }
         root.addView(phase)
 
-        walletInput = EditText(this).apply {
-            hint = "Solana wallet that will receive USDC"
-            setSingleLine(true)
-            setText(prefs.getString(KEY_WALLET, ""))
+        walletStatus = TextView(this).apply {
+            textSize = 15f
+            setTextIsSelectable(true)
+            setPadding(0, 4, 0, 12)
         }
-        root.addView(walletInput)
+        root.addView(walletStatus)
 
-        root.addView(Button(this).apply {
+        selectWalletButton = Button(this).apply {
+            text = "SELECT RECEIVE WALLET"
+            setOnClickListener { connectReceiveWallet() }
+        }
+        root.addView(selectWalletButton)
+
+        requestButton = Button(this).apply {
             text = "SHOW REQUEST QR — 1 OF 2"
+            isEnabled = false
             setOnClickListener { generateRequest() }
-        })
+        }
+        root.addView(requestButton)
 
         qr = ImageView(this).apply {
             adjustViewBounds = true
@@ -122,7 +136,6 @@ class Gate04ReceiverActivity : AppCompatActivity() {
         })
 
         status = TextView(this).apply {
-            text = "Enter your Solana wallet and create the first QR."
             textSize = 15f
             setTextIsSelectable(true)
             setPadding(0, 12, 0, 12)
@@ -141,13 +154,89 @@ class Gate04ReceiverActivity : AppCompatActivity() {
         root.addView(copyAcceptedButton)
 
         setContentView(ScrollView(this).apply { addView(root) })
+        renderWalletBinding()
+    }
+
+    private fun connectReceiveWallet() {
+        selectWalletButton.isEnabled = false
+        requestButton.isEnabled = false
+        status.text = "Opening a Solana wallet to choose the address that will receive settled USDC…"
+
+        lifecycleScope.launch {
+            val result = runCatching {
+                AirnoteWalletAdapterFactory.create().connect(
+                    ActivityResultSender(this@Gate04ReceiverActivity)
+                )
+            }
+
+            result.onSuccess { walletResult ->
+                when (walletResult) {
+                    is TransactionResult.Success -> {
+                        val account = walletResult.authResult.accounts.firstOrNull()
+                        if (account == null) {
+                            status.text = "WALLET NOT BOUND\nThe wallet returned no authorized account."
+                        } else {
+                            val binding = walletBindingStore.save(account.publicKey, null)
+                            renderWalletBinding()
+                            status.text = buildString {
+                                appendLine("RECEIVE WALLET BOUND  ✓")
+                                appendLine(binding.publicKeyBase58)
+                                appendLine()
+                                appendLine("Only this public key is cached by AIRNOTE.")
+                                append("You can now disconnect from the internet and create Scan 1 later.")
+                            }
+                        }
+                    }
+
+                    is TransactionResult.NoWalletFound -> {
+                        status.text = "NO COMPATIBLE WALLET\n${walletResult.message}"
+                    }
+
+                    is TransactionResult.Failure -> {
+                        status.text = "WALLET CONNECTION FAILED\n${walletResult.message}"
+                    }
+                }
+            }.onFailure { error ->
+                status.text = "WALLET CONNECTION FAILED\n${error.message ?: error::class.java.simpleName}"
+            }
+
+            selectWalletButton.isEnabled = true
+            requestButton.isEnabled = walletBindingStore.current() != null
+        }
+    }
+
+    private fun renderWalletBinding() {
+        val binding = walletBindingStore.current()
+        if (binding == null) {
+            walletStatus.text = buildString {
+                appendLine("RECEIVE WALLET NOT SET")
+                appendLine("Choose an MWA-compatible Solana wallet once before receiving offline.")
+                append("AIRNOTE stores only the selected public key.")
+            }
+            selectWalletButton.text = "SELECT RECEIVE WALLET"
+            requestButton.isEnabled = false
+            if (currentRequest == null) {
+                status.text = "Select the wallet that should receive USDC after settlement."
+            }
+        } else {
+            walletStatus.text = buildString {
+                appendLine("OFFLINE RECEIVE READY  ✓")
+                appendLine(binding.publicKeyBase58)
+                appendLine()
+                append("The recipient public key is cached locally. Scan 1 can be created without reconnecting the wallet.")
+            }
+            selectWalletButton.text = "CHANGE RECEIVE WALLET"
+            requestButton.isEnabled = true
+            if (currentRequest == null && acceptedPaymentId == null) {
+                status.text = "Wallet binding ready. You can disconnect now and start the two-scan handoff."
+            }
+        }
     }
 
     private fun generateRequest() {
         runCatching {
-            val walletText = walletInput.text.toString().trim()
-            val wallet = Base58.decode32(walletText, "recipient wallet")
-            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_WALLET, walletText).apply()
+            val binding = walletBindingStore.current() ?: error("select a receive wallet first")
+            val wallet = Base58.decode32(binding.publicKeyBase58, "recipient wallet")
             val created = now()
             val sessionId = UUID.randomUUID().toString()
             val request = AirnoteProtocol.RecipientRequest(
@@ -169,7 +258,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                 AirnoteProofJournal(this).record(
                     type = AirnoteProofEventType.RECEIVER_REQUEST_QR_READY,
                     handoffSessionId = sessionId,
-                    detail = "Receiver request QR created; request TTL=${Gate04Verifier.REQUEST_MAX_LIFETIME_SECONDS}s"
+                    detail = "Receiver request QR created from cached MWA public-key binding; request TTL=${Gate04Verifier.REQUEST_MAX_LIFETIME_SECONDS}s"
                 )
             }
             phase.text = "SCAN 1 OF 2  •  SHOW THIS QR"
@@ -177,11 +266,11 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                 appendLine("REQUEST READY")
                 appendLine()
                 appendLine("Show this QR to the sender.")
-                appendLine("They scan it to bind the Airnote to this wallet:")
-                appendLine(walletText)
+                appendLine("They scan it to bind the Airnote to your selected wallet:")
+                appendLine(binding.publicKeyBase58)
                 appendLine()
                 appendLine("Then tap SCAN PAYMENT — 2 OF 2 and scan the QR they show back to you.")
-                append("Internet is not required for either scan.")
+                append("No wallet session or internet connection is required for either scan.")
             }
         }.onFailure { error ->
             currentRequest = null
@@ -203,6 +292,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             val commitmentHex = commitment.hex()
             val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
             val store = AirnotePaymentStore(this)
+            val requestRecipient = Base58.encode(expected.recipientSolanaWallet)
 
             val existing = store.get(commitmentHex)
             if (existing == null) {
@@ -217,7 +307,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                     amountBaseUnits = transfer.airnote.mintCore.amountBaseUnits,
                     createdAtUnixSeconds = now(),
                     expiresAtUnixSeconds = transfer.airnote.mintCore.expiresAtUnixSeconds,
-                    counterparty = walletInput.text.toString().trim(),
+                    counterparty = requestRecipient,
                     protocolPayload = scanned.trim()
                 )
             }
@@ -261,6 +351,5 @@ class Gate04ReceiverActivity : AppCompatActivity() {
 
     companion object {
         private const val PREFS = "airnote_gate04"
-        private const val KEY_WALLET = "recipient_wallet"
     }
 }
