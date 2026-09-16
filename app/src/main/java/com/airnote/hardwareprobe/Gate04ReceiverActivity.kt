@@ -158,6 +158,11 @@ class Gate04ReceiverActivity : AppCompatActivity() {
     }
 
     private fun connectReceiveWallet() {
+        if (currentRequest != null && acceptedPaymentId == null) {
+            status.text = "FINISH CURRENT HANDOFF\nScan the sender's payment QR before changing the receive wallet."
+            return
+        }
+
         selectWalletButton.isEnabled = false
         requestButton.isEnabled = false
         status.text = "Opening a Solana wallet to choose the address that will receive settled USDC…"
@@ -177,6 +182,12 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                             status.text = "WALLET NOT BOUND\nThe wallet returned no authorized account."
                         } else {
                             val binding = walletBindingStore.save(account.publicKey, null)
+                            runCatching {
+                                AirnoteProofJournal(this@Gate04ReceiverActivity).record(
+                                    type = AirnoteProofEventType.RECEIVE_WALLET_BOUND,
+                                    detail = "recipient=${binding.publicKeyBase58}; source=MWA"
+                                )
+                            }
                             renderWalletBinding()
                             status.text = buildString {
                                 appendLine("RECEIVE WALLET BOUND  ✓")
@@ -251,6 +262,8 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             acceptedPaymentId = null
             copyAcceptedButton.isEnabled = false
             openPaymentButton.isEnabled = false
+            selectWalletButton.isEnabled = false
+            requestButton.isEnabled = false
             val encoded = Gate04Wire.encodeRequestQr(request)
             qr.setImageBitmap(QrSupport.render(encoded))
             scanTransferButton.isEnabled = true
@@ -258,7 +271,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                 AirnoteProofJournal(this).record(
                     type = AirnoteProofEventType.RECEIVER_REQUEST_QR_READY,
                     handoffSessionId = sessionId,
-                    detail = "Receiver request QR created from cached MWA public-key binding; request TTL=${Gate04Verifier.REQUEST_MAX_LIFETIME_SECONDS}s"
+                    detail = "recipient=${binding.publicKeyBase58}; source=cached_mwa_binding; request_ttl=${Gate04Verifier.REQUEST_MAX_LIFETIME_SECONDS}s"
                 )
             }
             phase.text = "SCAN 1 OF 2  •  SHOW THIS QR"
@@ -276,6 +289,8 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             currentRequest = null
             handoffSessionId = null
             scanTransferButton.isEnabled = false
+            selectWalletButton.isEnabled = true
+            requestButton.isEnabled = walletBindingStore.current() != null
             phase.text = "SCAN 1 OF 2  •  CREATE YOUR REQUEST"
             status.text = "REQUEST FAILED\n${error.message ?: error::class.java.simpleName}"
         }
@@ -317,7 +332,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                     type = AirnoteProofEventType.OFFLINE_TRANSFER_ACCEPTED,
                     handoffSessionId = handoffSessionId,
                     paymentId = commitmentHex,
-                    detail = "Certificate, recipient binding, P-256 authorization, and duplicate guard verified; amount_base_units=${transfer.airnote.mintCore.amountBaseUnits}"
+                    detail = "recipient=$requestRecipient; certificate, recipient binding, P-256 authorization, and duplicate guard verified; amount_base_units=${transfer.airnote.mintCore.amountBaseUnits}"
                 )
             }
 
@@ -326,6 +341,8 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             copyAcceptedButton.isEnabled = true
             openPaymentButton.isEnabled = true
             scanTransferButton.isEnabled = false
+            selectWalletButton.isEnabled = true
+            requestButton.isEnabled = walletBindingStore.current() != null
             qr.setImageDrawable(null)
             phase.text = "OFFLINE HANDOFF COMPLETE  ✓"
             status.text = buildString {
