@@ -67,7 +67,7 @@ class AirnoteSettlementCoordinator(
                     proofJournal?.record(
                         type = AirnoteProofEventType.MWA_RECIPIENT_AUTHORIZED,
                         paymentId = paymentId,
-                        detail = "MWA account matched the recipient bound into the offline transfer"
+                        detail = "recipient=${Base58.encode(wallet)}; MWA account matched the recipient bound into the offline transfer"
                     )
                 }
                 val params = TransactionParams(
