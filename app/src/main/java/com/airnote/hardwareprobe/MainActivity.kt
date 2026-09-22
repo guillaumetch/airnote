@@ -1,6 +1,9 @@
 package com.airnote.hardwareprobe
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -196,6 +199,39 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(createAirnote)
 
+        root.addView(Button(this).apply {
+            text = "COPY LATEST MINT REQUEST"
+            setOnClickListener {
+                val file = latestMintRequestFile()
+                if (file == null) {
+                    Toast.makeText(this@MainActivity, "Create an Airnote first.", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(
+                    ClipData.newPlainText("AIRNOTE mint request", file.readText())
+                )
+                Toast.makeText(this@MainActivity, "Mint request copied.", Toast.LENGTH_SHORT).show()
+            }
+        })
+
+        root.addView(Button(this).apply {
+            text = "SHARE LATEST MINT REQUEST"
+            setOnClickListener {
+                val file = latestMintRequestFile()
+                if (file == null) {
+                    Toast.makeText(this@MainActivity, "Create an Airnote first.", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                val share = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_SUBJECT, file.name)
+                    putExtra(Intent.EXTRA_TEXT, file.readText())
+                }
+                startActivity(Intent.createChooser(share, "Share AIRNOTE mint request"))
+            }
+        })
+
         root.addView(TextView(this).apply {
             text = "LOCAL STATUS"
             textSize = 20f
@@ -295,4 +331,11 @@ class MainActivity : AppCompatActivity() {
             writeText(request)
         }
     }
+
+    private fun latestMintRequestFile(): File? =
+        getExternalFilesDir(null)
+            ?.listFiles()
+            .orEmpty()
+            .filter { it.isFile && it.name.startsWith("airnote-mint-request-") && it.name.endsWith(".txt") }
+            .maxByOrNull { it.lastModified() }
 }
