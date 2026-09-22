@@ -244,6 +244,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun fundOrCertify(noteIdHex: String, button: Button) {
+        val idleLabel = if (button.text == "CONTINUE LATEST AIRNOTE") {
+            "CONTINUE LATEST AIRNOTE"
+        } else {
+            "CREATE & FUND AIRNOTE"
+        }
         button.isEnabled = false
         val before = localAirnoteStore.get(noteIdHex)
         button.text = when (before?.state) {
@@ -289,11 +294,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            button.text = if (button.text.toString().contains("CONTINUE")) {
-                "CONTINUE LATEST AIRNOTE"
-            } else {
-                "CREATE & FUND AIRNOTE"
-            }
+            button.text = idleLabel
             button.isEnabled = true
             refreshLocalActivity()
         }

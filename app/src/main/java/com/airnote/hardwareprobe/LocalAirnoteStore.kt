@@ -137,7 +137,7 @@ class LocalAirnoteStore(context: Context) {
             )
         }
 
-    fun importLegacyMintRequests(files: Array<File>) {
+    fun importLegacyMintRequests(files: Array<out File>) {
         files
             .filter { it.isFile && it.name.startsWith("airnote-mint-request-") && it.name.endsWith(".txt") }
             .forEach { file ->
