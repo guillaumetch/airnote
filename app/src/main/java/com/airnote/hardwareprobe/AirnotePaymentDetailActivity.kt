@@ -16,8 +16,10 @@ import kotlinx.coroutines.launch
 import java.time.Instant
 
 class AirnotePaymentDetailActivity : AppCompatActivity() {
+    private lateinit var walletActivityResultSender: ActivityResultSender
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        walletActivityResultSender = ActivityResultSender(this)
         title = "AIRNOTE — Payment"
         render()
     }
@@ -83,10 +85,7 @@ class AirnotePaymentDetailActivity : AppCompatActivity() {
                             AirnoteSettlementCoordinator(
                                 store = store,
                                 proofJournal = AirnoteProofJournal(this@AirnotePaymentDetailActivity)
-                            ).settle(
-                                id,
-                                ActivityResultSender(this@AirnotePaymentDetailActivity)
-                            )
+                            ).settle(id, walletActivityResultSender)
                         }
                         result.onSuccess { settled ->
                             Toast.makeText(
