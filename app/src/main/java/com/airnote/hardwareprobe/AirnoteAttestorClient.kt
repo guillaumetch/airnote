@@ -67,6 +67,6 @@ class AirnoteAttestorClient(
     private fun ByteArray.hex(): String = joinToString("") { "%02x".format(it.toInt() and 0xff) }
 
     companion object {
-        const val DEFAULT_ENDPOINT = "https://airnote.cash/api/certify"
+        const val DEFAULT_ENDPOINT = "https://api.airnote.cash/certify"
     }
 }
