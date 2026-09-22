@@ -28,6 +28,7 @@ import java.util.UUID
 
 class Gate04ReceiverActivity : AppCompatActivity() {
     private lateinit var walletBindingStore: AirnoteReceiveWalletBindingStore
+    private lateinit var walletActivityResultSender: ActivityResultSender
     private lateinit var walletStatus: TextView
     private lateinit var selectWalletButton: Button
     private lateinit var requestButton: Button
@@ -49,6 +50,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        walletActivityResultSender = ActivityResultSender(this)
         title = "AIRNOTE — Receive"
         walletBindingStore = AirnoteReceiveWalletBindingStore(this)
 
@@ -169,9 +171,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             val result = runCatching {
-                AirnoteWalletAdapterFactory.create().connect(
-                    ActivityResultSender(this@Gate04ReceiverActivity)
-                )
+                AirnoteWalletAdapterFactory.create().connect(walletActivityResultSender)
             }
 
             result.onSuccess { walletResult ->
