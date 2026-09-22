@@ -1,11 +1,8 @@
 package com.airnote.hardwareprobe
 
-import android.net.Uri
 import com.airnote.protocol.Base58
 import com.solana.mobilewalletadapter.clientlib.ActivityResultSender
-import com.solana.mobilewalletadapter.clientlib.ConnectionIdentity
 import com.solana.mobilewalletadapter.clientlib.MobileWalletAdapter
-import com.solana.mobilewalletadapter.clientlib.Solana
 import com.solana.mobilewalletadapter.clientlib.TransactionParams
 import com.solana.mobilewalletadapter.clientlib.TransactionResult
 
@@ -21,7 +18,7 @@ import com.solana.mobilewalletadapter.clientlib.TransactionResult
 class AirnoteSettlementCoordinator(
     private val store: AirnotePaymentStore,
     private val rpc: AirnoteSolanaRpc = AirnoteSolanaRpc(),
-    private val walletAdapter: MobileWalletAdapter = defaultWalletAdapter(),
+    private val walletAdapter: MobileWalletAdapter = AirnoteWalletAdapterFactory.create(),
     private val proofJournal: AirnoteProofJournal? = null
 ) {
     data class SettlementResult(
@@ -70,7 +67,7 @@ class AirnoteSettlementCoordinator(
                     proofJournal?.record(
                         type = AirnoteProofEventType.MWA_RECIPIENT_AUTHORIZED,
                         paymentId = paymentId,
-                        detail = "MWA account matched the recipient bound into the offline transfer"
+                        detail = "recipient=${Base58.encode(wallet)}; MWA account matched the recipient bound into the offline transfer"
                     )
                 }
                 val params = TransactionParams(
@@ -195,16 +192,4 @@ class AirnoteSettlementCoordinator(
 
     class WalletUnavailableException(message: String) : Exception(message)
     class WalletSubmissionException(message: String, cause: Throwable) : Exception(message, cause)
-
-    companion object {
-        fun defaultWalletAdapter(): MobileWalletAdapter = MobileWalletAdapter(
-            ConnectionIdentity(
-                identityUri = Uri.parse("https://github.com/guillaumetch/airnote"),
-                iconUri = Uri.parse("favicon.ico"),
-                identityName = "AIRNOTE"
-            )
-        ).apply {
-            blockchain = Solana.Devnet
-        }
-    }
 }
