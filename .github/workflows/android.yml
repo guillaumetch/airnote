@@ -18,6 +18,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Check attestor API syntax
+        run: node --check api/certify.mjs
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
