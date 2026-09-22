@@ -1,0 +1,10 @@
+{
+  "name": "airnote-attestor",
+  "private": true,
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "check:attestor": "node --check api/certify.mjs && node tools/attestor-node-parity.mjs"
+  }
+}
