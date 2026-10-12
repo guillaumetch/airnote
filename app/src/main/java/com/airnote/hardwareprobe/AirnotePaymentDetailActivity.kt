@@ -143,7 +143,13 @@ class AirnotePaymentDetailActivity : AppCompatActivity() {
             })
         }
 
-        setContentView(ScrollView(this).apply { addView(root) })
+        setContentView(
+            ScrollView(this).apply {
+                isFillViewport = true
+                setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
+                addView(root)
+            }
+        )
     }
 
     private fun canSettle(payment: AirnotePayment): Boolean =
