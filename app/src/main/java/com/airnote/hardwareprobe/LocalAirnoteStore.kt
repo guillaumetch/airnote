@@ -28,6 +28,7 @@ data class LocalAirnote(
     val noteAccount: String? = null,
     val vaultAccount: String? = null,
     val certificateJson: String? = null,
+    val skrAccessWalletBase58: String? = null,
     val lastError: String? = null
 ) {
     val amountBaseUnits: Long get() = amountUsdc * 1_000_000L
@@ -39,7 +40,8 @@ class LocalAirnoteStore(context: Context) {
     fun create(
         material: NoteOwnerKeyManager.Material,
         amountUsdc: Int,
-        lifetimeSeconds: Long
+        lifetimeSeconds: Long,
+        skrAccessWalletBase58: String? = null
     ): LocalAirnote {
         require(amountUsdc in setOf(1, 5, 10)) { "unsupported AIRNOTE denomination" }
         val note = LocalAirnote(
@@ -50,7 +52,8 @@ class LocalAirnoteStore(context: Context) {
             amountUsdc = amountUsdc,
             lifetimeSeconds = lifetimeSeconds,
             createdAtUnixSeconds = System.currentTimeMillis() / 1000L,
-            state = LocalAirnoteState.PREPARED
+            state = LocalAirnoteState.PREPARED,
+            skrAccessWalletBase58 = skrAccessWalletBase58
         )
         put(note)
         return note
@@ -194,6 +197,7 @@ class LocalAirnoteStore(context: Context) {
         .putNullable("noteAccount", note.noteAccount)
         .putNullable("vaultAccount", note.vaultAccount)
         .putNullable("certificateJson", note.certificateJson)
+        .putNullable("skrAccessWalletBase58", note.skrAccessWalletBase58)
         .putNullable("lastError", note.lastError)
         .toString()
 
@@ -214,6 +218,7 @@ class LocalAirnoteStore(context: Context) {
             noteAccount = json.optNullableString("noteAccount"),
             vaultAccount = json.optNullableString("vaultAccount"),
             certificateJson = json.optNullableString("certificateJson"),
+            skrAccessWalletBase58 = json.optNullableString("skrAccessWalletBase58"),
             lastError = json.optNullableString("lastError")
         )
     }.getOrNull()
