@@ -49,6 +49,14 @@ class AirnotePaymentDetailActivity : AppCompatActivity() {
         )
         root.addView(
             AirnoteUi.networkBadge(this),
+            AirnoteUi.marginParams(this, bottom = 4)
+        )
+        root.addView(
+            AirnoteUi.body(
+                this,
+                "AIRNOTE beta settles on Devnet. Switch your wallet to Solana Devnet before settlement.",
+                11.5f
+            ),
             AirnoteUi.marginParams(this, bottom = 16)
         )
 
