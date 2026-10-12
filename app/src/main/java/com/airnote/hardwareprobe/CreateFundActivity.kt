@@ -182,10 +182,6 @@ class CreateFundActivity : AppCompatActivity() {
         }
         root.addView(stateView, AirnoteUi.marginParams(this, top = 12))
 
-        root.addView(AirnoteUi.compactButton(this, "Back to Home").apply {
-            setOnClickListener { finish() }
-        }, AirnoteUi.marginParams(this, top = 10))
-
         setContentView(ScrollView(this).apply {
             isFillViewport = true
             addView(root)
