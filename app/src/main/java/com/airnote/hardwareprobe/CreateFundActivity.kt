@@ -130,7 +130,7 @@ class CreateFundActivity : AppCompatActivity() {
             val row = if (index < 2) lifeRowOne else lifeRowTwo
             row.addView(
                 button,
-                LinearLayout.LayoutParams(0, AirnoteUi.dp(this, 54), 1f).apply {
+                LinearLayout.LayoutParams(0, AirnoteUi.dp(this, 62), 1f).apply {
                     marginStart = AirnoteUi.dp(this@CreateFundActivity, 3)
                     marginEnd = AirnoteUi.dp(this@CreateFundActivity, 3)
                 }
