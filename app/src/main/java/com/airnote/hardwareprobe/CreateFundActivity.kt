@@ -160,6 +160,14 @@ class CreateFundActivity : AppCompatActivity() {
         })
         root.addView(skrCard, AirnoteUi.marginParams(this, top = 12))
 
+        root.addView(
+            AirnoteUi.devnetNotice(
+                this,
+                "Funding and settlement use Devnet USDC. SKR access verification checks mainnet."
+            ),
+            AirnoteUi.marginParams(this, top = 12)
+        )
+
         val createButton = AirnoteUi.primaryButton(this, "Create & Fund Airnote").apply {
             setOnClickListener { createAndFund(this) }
         }
