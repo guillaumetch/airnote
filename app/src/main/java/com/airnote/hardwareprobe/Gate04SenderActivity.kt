@@ -56,13 +56,23 @@ class Gate04SenderActivity : AppCompatActivity() {
             setPadding(AirnoteUi.dp(this@Gate04SenderActivity, 24), AirnoteUi.dp(this@Gate04SenderActivity, 28), AirnoteUi.dp(this@Gate04SenderActivity, 24), AirnoteUi.dp(this@Gate04SenderActivity, 48))
             setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
         }
-        root.addView(AirnoteUi.sectionLabel(this, "Send Airnote"))
-        root.addView(AirnoteUi.title(this, "Two scans. No internet required.", 24f), AirnoteUi.marginParams(this, top = 4, bottom = 16))
+        root.addView(AirnoteUi.sectionLabel(this, "AIRNOTE"))
+        root.addView(AirnoteUi.title(this, "Send", 26f), AirnoteUi.marginParams(this, top = 2))
+        root.addView(AirnoteUi.body(this, "Pay anyone with a two-scan offline handoff.", 13f), AirnoteUi.marginParams(this, top = 3, bottom = 12))
 
-        phase = AirnoteUi.statusPill(this, "CHOOSE A READY AIRNOTE", false)
-        root.addView(phase, AirnoteUi.marginParams(this, bottom = 16))
+        val steps = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        steps.addView(AirnoteUi.statusPill(this, "1  Scan request", false), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        steps.addView(AirnoteUi.body(this, "  →  ", 13f))
+        steps.addView(AirnoteUi.statusPill(this, "2  Show payment", false), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        root.addView(steps, AirnoteUi.marginParams(this, bottom = 14))
 
-        root.addView(AirnoteUi.sectionLabel(this, "Your offline Airnotes"))
+        phase = AirnoteUi.statusPill(this, "Choose a Ready Offline Airnote", false)
+        root.addView(phase, AirnoteUi.marginParams(this, bottom = 14))
+
+        root.addView(AirnoteUi.sectionLabel(this, "Ready Offline"))
         localNotesContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, 6, 0, 12)
@@ -95,12 +105,12 @@ class Gate04SenderActivity : AppCompatActivity() {
         }
         root.addView(qr)
 
-        status = AirnoteUi.body(this, "Choose a READY OFFLINE Airnote. File import is recovery-only.", 14f).apply {
+        status = AirnoteUi.body(this, "Choose a Ready Offline Airnote to begin.", 13f).apply {
             setTextIsSelectable(true)
             setPadding(AirnoteUi.dp(this@Gate04SenderActivity, 16), AirnoteUi.dp(this@Gate04SenderActivity, 16), AirnoteUi.dp(this@Gate04SenderActivity, 16), AirnoteUi.dp(this@Gate04SenderActivity, 16))
-            background = AirnoteUi.rounded(this@Gate04SenderActivity, AirnoteUi.CLOUD, 20, AirnoteUi.MIST)
+            background = AirnoteUi.rounded(this@Gate04SenderActivity, "#F8FCFF", 20, "#DDE7F0")
         }
-        root.addView(status)
+        root.addView(status, AirnoteUi.marginParams(this, top = 10))
 
         copyTransferButton = AirnoteUi.compactButton(this, "Technical · Copy signed payload").apply {
             isEnabled = false
