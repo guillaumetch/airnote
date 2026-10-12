@@ -192,10 +192,12 @@ class MainActivity : AppCompatActivity() {
             gravity = Gravity.CENTER
             setPadding(
                 AirnoteUi.dp(this@MainActivity, 12),
-                AirnoteUi.dp(this@MainActivity, 7),
+                AirnoteUi.dp(this@MainActivity, 5),
                 AirnoteUi.dp(this@MainActivity, 12),
-                AirnoteUi.dp(this@MainActivity, 7)
+                AirnoteUi.dp(this@MainActivity, 8)
             )
+            gravity = Gravity.CENTER_VERTICAL
+            elevation = AirnoteUi.dp(this@MainActivity, 6).toFloat()
             background = AirnoteUi.rounded(this@MainActivity, "#FCFEFF", 0, "#DDE7F0")
         }
         val navItems = listOf(
@@ -231,13 +233,13 @@ class MainActivity : AppCompatActivity() {
                     AirnoteUi.color(if (index == 0) AirnoteUi.AIR else AirnoteUi.SLATE)
                 )
             })
-            nav.addView(item, LinearLayout.LayoutParams(0, AirnoteUi.dp(this, 50), 1f))
+            nav.addView(item, LinearLayout.LayoutParams(0, AirnoteUi.dp(this, 46), 1f))
         }
         shell.addView(
             nav,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                AirnoteUi.dp(this, 58)
+                AirnoteUi.dp(this, 64)
             )
         )
 
