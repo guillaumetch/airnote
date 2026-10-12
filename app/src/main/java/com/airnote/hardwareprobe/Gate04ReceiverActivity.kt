@@ -61,8 +61,17 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             setPadding(AirnoteUi.dp(this@Gate04ReceiverActivity, 24), AirnoteUi.dp(this@Gate04ReceiverActivity, 28), AirnoteUi.dp(this@Gate04ReceiverActivity, 24), AirnoteUi.dp(this@Gate04ReceiverActivity, 48))
             setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
         }
-        root.addView(AirnoteUi.sectionLabel(this, "AIRNOTE"))
-        root.addView(AirnoteUi.title(this, "Receive", 26f), AirnoteUi.marginParams(this, top = 2))
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        top.addView(AirnoteUi.body(this, "‹", 28f).apply {
+            setTextColor(AirnoteUi.color(AirnoteUi.AIR_DEEP))
+            setPadding(0, 0, AirnoteUi.dp(this@Gate04ReceiverActivity, 8), 0)
+            setOnClickListener { finish() }
+        })
+        top.addView(AirnoteUi.title(this, "Receive", 26f))
+        root.addView(top)
         root.addView(AirnoteUi.body(this, "Create your request, then scan the signed payment.", 13f), AirnoteUi.marginParams(this, top = 3, bottom = 12))
 
         val steps = LinearLayout(this).apply {
@@ -167,11 +176,18 @@ class Gate04ReceiverActivity : AppCompatActivity() {
         }
         copyAcceptedButton.visibility = android.view.View.GONE
 
-        setContentView(ScrollView(this).apply {
+        val scroll = ScrollView(this).apply {
             isFillViewport = true
             setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
             addView(root)
-        })
+        }
+        setContentView(
+            AirnoteBottomNav.attach(
+                this,
+                scroll,
+                AirnoteBottomNav.Tab.RECEIVE
+            )
+        )
         restoreActiveRequest()
         renderWalletBinding()
     }
