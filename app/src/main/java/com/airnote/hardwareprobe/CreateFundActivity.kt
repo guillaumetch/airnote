@@ -161,7 +161,7 @@ class CreateFundActivity : AppCompatActivity() {
         skrHeader.addView(AirnoteUi.sectionLabel(this, "SKR Reserve+"), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         skrHeader.addView(AirnoteUi.body(this, "10 USDC / 24h", 11f))
         skrCard.addView(skrHeader)
-        skrStatusView = AirnoteUi.body(this, "Verify a wallet with liquid SKR to unlock Reserve+.", 12f)
+        skrStatusView = AirnoteUi.body(this, "SKR check uses Solana Mainnet (read-only). AIRNOTE payments remain on Devnet.", 12f)
         skrCard.addView(skrStatusView, AirnoteUi.marginParams(this, top = 6, bottom = 8))
         skrCard.addView(AirnoteUi.compactButton(this, "Verify SKR access").apply {
             setOnClickListener { verifySkrAccess(this) }
