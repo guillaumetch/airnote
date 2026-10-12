@@ -10,17 +10,24 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import com.solana.mobilewalletadapter.clientlib.ActivityResultSender
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
     private lateinit var localAirnoteStore: LocalAirnoteStore
     private lateinit var heroReserveAmountView: TextView
     private lateinit var heroReserveMetaView: TextView
     private lateinit var recentActivityContainer: LinearLayout
+    private lateinit var expiredRefundContainer: LinearLayout
+    private lateinit var walletActivityResultSender: ActivityResultSender
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         localAirnoteStore = LocalAirnoteStore(this)
+        walletActivityResultSender = ActivityResultSender(this)
         localAirnoteStore.importLegacyMintRequests(getExternalFilesDir(null)?.listFiles().orEmpty())
 
         val root = LinearLayout(this).apply {
@@ -169,7 +176,12 @@ class MainActivity : AppCompatActivity() {
             }
         )
         readyCard.addView(readyRow)
-        root.addView(readyCard, AirnoteUi.marginParams(this, bottom = 18))
+        root.addView(readyCard, AirnoteUi.marginParams(this, bottom = 12))
+
+        expiredRefundContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        root.addView(expiredRefundContainer, AirnoteUi.marginParams(this, bottom = 18))
 
         val recentHeader = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -214,7 +226,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun refreshHome() {
         val notes = localAirnoteStore.all()
-        val readyNotes = notes.filter { it.state == LocalAirnoteState.READY_OFFLINE }
+        val readyNotes = localAirnoteStore.sendable()
+            .filter { it.state == LocalAirnoteState.READY_OFFLINE }
+        val expiredUnsent = localAirnoteStore.expiredUnsent()
         val readyAmount = readyNotes.sumOf { it.amountUsdc }
 
         heroReserveAmountView.text = String.format("%.2f USDC", readyAmount.toDouble())
@@ -222,6 +236,51 @@ class MainActivity : AppCompatActivity() {
             readyNotes.isEmpty() -> "No prepared Airnotes yet."
             readyNotes.size == 1 -> "1 Airnote ready to move offline."
             else -> readyNotes.size.toString() + " Airnotes ready to move offline."
+        }
+
+        expiredRefundContainer.removeAllViews()
+        expiredUnsent.forEach { note ->
+            val card = AirnoteUi.glassCard(this, 14).apply {
+                background = AirnoteUi.rounded(this@MainActivity, "#FFF8EA", 20, "#F0D7A0")
+            }
+            card.addView(AirnoteUi.title(this, "Expired Airnote", 15f))
+            card.addView(
+                AirnoteUi.body(
+                    this,
+                    note.amountUsdc.toString() + " USDC · Never handed off\nFunds are still safe on Solana.",
+                    11.5f
+                ),
+                AirnoteUi.marginParams(this, top = 4, bottom = 8)
+            )
+            card.addView(
+                AirnoteUi.primaryButton(this, "Refund " + note.amountUsdc + " USDC").apply {
+                    setOnClickListener {
+                        isEnabled = false
+                        text = "Opening funder wallet…"
+                        lifecycleScope.launch {
+                            val result = runCatching {
+                                AirnoteRefundCoordinator(localAirnoteStore)
+                                    .refund(note.noteIdHex, walletActivityResultSender)
+                            }
+                            result.onSuccess { refunded ->
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    refunded.note.amountUsdc.toString() + " USDC refunded on Devnet",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }.onFailure { error ->
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    refundErrorCopy(error),
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                            refreshHome()
+                        }
+                    }
+                }
+            )
+            expiredRefundContainer.addView(card, AirnoteUi.marginParams(this, bottom = 8))
         }
 
         recentActivityContainer.removeAllViews()
@@ -297,6 +356,18 @@ class MainActivity : AppCompatActivity() {
                 recentActivityContainer.addView(row)
             }
         }
+    }
+
+    private fun refundErrorCopy(error: Throwable): String = when (error) {
+        is AirnoteRefundCoordinator.WalletUnavailableException ->
+            "No compatible Solana wallet is available."
+        is AirnoteRefundCoordinator.WalletSubmissionException ->
+            "Refund failed. Use the original funding wallet on Solana Devnet."
+        is AirnoteSolanaRpc.FinalizationTimeoutException ->
+            "Refund was submitted but is still finalizing. Check again before retrying."
+        is AirnoteSolanaRpc.RpcException ->
+            "Solana Devnet is unavailable right now. Your USDC remains locked safely in the Airnote vault."
+        else -> error.message ?: "Refund could not complete."
     }
 
     private fun statusLabel(status: PaymentStatus): String = when (status) {
