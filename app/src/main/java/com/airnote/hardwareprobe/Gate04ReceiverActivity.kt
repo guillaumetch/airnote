@@ -73,7 +73,8 @@ class Gate04ReceiverActivity : AppCompatActivity() {
         })
         top.addView(AirnoteUi.title(this, "Receive", 26f))
         root.addView(top)
-        root.addView(AirnoteUi.body(this, "Create your request, then scan the signed payment.", 13f), AirnoteUi.marginParams(this, top = 3, bottom = 12))
+        root.addView(AirnoteUi.body(this, "Create your request, then scan the signed payment.", 13f), AirnoteUi.marginParams(this, top = 3, bottom = 7))
+        root.addView(AirnoteUi.networkBadge(this), AirnoteUi.marginParams(this, bottom = 12))
 
         val steps = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
