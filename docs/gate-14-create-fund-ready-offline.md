@@ -56,3 +56,31 @@ Funding submission is persisted before waiting for finality.
 9. SEND AIRNOTE shows the local note directly.
 
 The existing two-scan offline protocol, P-256 transfer signature, recipient binding, settlement transaction, replay protection, and reconciliation rules are unchanged.
+
+
+## Physical acceptance — PASS
+
+Validated on a physical Solana Mobile Seeker.
+
+Observed end-to-end path:
+
+- CREATE & FUND 1 USDC through MWA
+- funding transaction finalized on Solana Devnet
+- attestor at `https://api.airnote.cash/certify` certified the finalized note
+- Android verified the pinned attestor signature and reached READY OFFLINE
+- SEND listed the locally prepared note without file import
+- receiver request QR was created from the cached receive-wallet binding
+- sender scanned Scan 1 and created the StrongBox-backed P-256 transfer authorization
+- receiver scanned Scan 2 with internet unavailable
+- receiver reached OFFLINE HANDOFF COMPLETE / AIRNOTE RECEIVED
+- backing certificate, recipient binding, StrongBox P-256 authorization, and duplicate guard all verified offline
+- connectivity was restored
+- receiver opened settlement, authorized the exact bound wallet through MWA, submitted `redeem_note`, and reached SETTLED
+
+This proves the intended product sequence on real hardware:
+
+`online preparation -> offline ownership transfer -> online Solana settlement`
+
+During the one-device Seeker test, an activity-switch lifecycle issue was found: the receiver request was previously held only in memory, so reopening RECEIVE could create a new nonce and correctly reject the already-signed transfer as not bound to the current request. Gate 14 now persists the exact active receiver request/session locally and restores it byte-for-byte across activity/process switches. No private key material is persisted.
+
+Gate 14 acceptance status: **PASS**.
