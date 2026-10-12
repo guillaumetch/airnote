@@ -8,8 +8,6 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : AppCompatActivity() {
     private lateinit var localAirnoteStore: LocalAirnoteStore
@@ -97,12 +95,12 @@ class MainActivity : AppCompatActivity() {
             weightSum = 4f
         }
         val tiles = listOf(
-            Triple("＋", "Create\n& Fund", CreateFundActivity::class.java),
-            Triple("➤", "Send", Gate04SenderActivity::class.java),
-            Triple("⌗", "Receive", Gate04ReceiverActivity::class.java),
-            Triple("▤", "Activity", AirnoteHistoryActivity::class.java)
+            Triple("＋", Pair("Create & Fund", "Add USDC\nto your AirNote"), CreateFundActivity::class.java),
+            Triple("➤", Pair("Send", "Pay anyone\noffline or online"), Gate04SenderActivity::class.java),
+            Triple("⌗", Pair("Receive", "Show your code\nor share a link"), Gate04ReceiverActivity::class.java),
+            Triple("▤", Pair("Activity", "View your\ntransactions"), AirnoteHistoryActivity::class.java)
         )
-        tiles.forEach { (icon, label, target) ->
+        tiles.forEach { (icon, copy, target) ->
             val tile = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
@@ -120,14 +118,21 @@ class MainActivity : AppCompatActivity() {
             }
             tile.addView(AirnoteUi.iconBubble(this, icon, 40))
             tile.addView(TextView(this).apply {
-                text = label
-                textSize = 9.5f
+                text = copy.first
+                textSize = 10.5f
                 gravity = Gravity.CENTER
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(AirnoteUi.color(AirnoteUi.NIGHT))
             }, AirnoteUi.marginParams(this, top = 4))
+            tile.addView(TextView(this).apply {
+                text = copy.second
+                textSize = 8.5f
+                gravity = Gravity.CENTER
+                setTextColor(AirnoteUi.color(AirnoteUi.SLATE))
+            }, AirnoteUi.marginParams(this, top = 2))
             actions.addView(
                 tile,
-                LinearLayout.LayoutParams(0, AirnoteUi.dp(this, 92), 1f).apply {
+                LinearLayout.LayoutParams(0, AirnoteUi.dp(this, 106), 1f).apply {
                     marginStart = AirnoteUi.dp(this@MainActivity, 3)
                     marginEnd = AirnoteUi.dp(this@MainActivity, 3)
                 }
@@ -176,88 +181,13 @@ class MainActivity : AppCompatActivity() {
             addView(root)
         }
 
-        val shell = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
-        }
-        shell.addView(
-            scroll,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                0,
-                1f
+        setContentView(
+            AirnoteBottomNav.attach(
+                this,
+                scroll,
+                AirnoteBottomNav.Tab.HOME
             )
         )
-
-        val nav = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            setPadding(
-                AirnoteUi.dp(this@MainActivity, 12),
-                AirnoteUi.dp(this@MainActivity, 5),
-                AirnoteUi.dp(this@MainActivity, 12),
-                AirnoteUi.dp(this@MainActivity, 8)
-            )
-            gravity = Gravity.CENTER_VERTICAL
-            elevation = AirnoteUi.dp(this@MainActivity, 6).toFloat()
-            background = AirnoteUi.rounded(this@MainActivity, "#FCFEFF", 0, "#DDE7F0")
-        }
-        val navItems = listOf(
-            Triple("⌂", "Home", MainActivity::class.java),
-            Triple("➤", "Send", Gate04SenderActivity::class.java),
-            Triple("⌗", "Receive", Gate04ReceiverActivity::class.java),
-            Triple("▤", "Activity", AirnoteHistoryActivity::class.java)
-        )
-        navItems.forEachIndexed { index, (glyph, label, target) ->
-            val item = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-                isClickable = true
-                setOnClickListener {
-                    if (target != MainActivity::class.java) {
-                        startActivity(Intent(this@MainActivity, target))
-                    }
-                }
-            }
-            item.addView(TextView(this).apply {
-                text = glyph
-                textSize = 18f
-                gravity = Gravity.CENTER
-                setTextColor(
-                    AirnoteUi.color(if (index == 0) AirnoteUi.AIR else AirnoteUi.SLATE)
-                )
-            })
-            item.addView(TextView(this).apply {
-                text = label
-                textSize = 10f
-                gravity = Gravity.CENTER
-                setTextColor(
-                    AirnoteUi.color(if (index == 0) AirnoteUi.AIR else AirnoteUi.SLATE)
-                )
-            })
-            nav.addView(item, LinearLayout.LayoutParams(0, AirnoteUi.dp(this, 46), 1f))
-        }
-        ViewCompat.setOnApplyWindowInsetsListener(nav) { view, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            view.setPadding(
-                AirnoteUi.dp(this@MainActivity, 12),
-                AirnoteUi.dp(this@MainActivity, 5),
-                AirnoteUi.dp(this@MainActivity, 12),
-                AirnoteUi.dp(this@MainActivity, 8) + systemBars.bottom
-            )
-            insets
-        }
-
-        shell.addView(
-            nav,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-
-        setContentView(shell)
-        ViewCompat.requestApplyInsets(nav)
 
         refreshHome()
         AirnoteReconciliationScheduler.enqueue(this)
