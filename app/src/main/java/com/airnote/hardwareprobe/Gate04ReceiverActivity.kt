@@ -58,43 +58,28 @@ class Gate04ReceiverActivity : AppCompatActivity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(32, 32, 32, 48)
+            setPadding(AirnoteUi.dp(this@Gate04ReceiverActivity, 24), AirnoteUi.dp(this@Gate04ReceiverActivity, 28), AirnoteUi.dp(this@Gate04ReceiverActivity, 24), AirnoteUi.dp(this@Gate04ReceiverActivity, 48))
+            setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
         }
-        root.addView(TextView(this).apply {
-            text = "RECEIVE AIRNOTE"
-            textSize = 28f
-            gravity = Gravity.CENTER_HORIZONTAL
-        })
-        root.addView(TextView(this).apply {
-            text = "Two scans. No internet required."
-            textSize = 16f
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, 4, 0, 24)
-        })
+        root.addView(AirnoteUi.sectionLabel(this, "Receive Airnote"))
+        root.addView(AirnoteUi.title(this, "Two scans. No internet required.", 24f), AirnoteUi.marginParams(this, top = 4, bottom = 16))
 
-        phase = TextView(this).apply {
-            text = "SCAN 1 OF 2  •  CREATE YOUR REQUEST"
-            textSize = 18f
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, 8, 0, 20)
-        }
-        root.addView(phase)
+        phase = AirnoteUi.statusPill(this, "SCAN 1 OF 2 · CREATE YOUR REQUEST", false)
+        root.addView(phase, AirnoteUi.marginParams(this, bottom = 16))
 
-        walletStatus = TextView(this).apply {
-            textSize = 15f
+        walletStatus = AirnoteUi.body(this, "", 14f).apply {
             setTextIsSelectable(true)
-            setPadding(0, 4, 0, 12)
+            setPadding(AirnoteUi.dp(this@Gate04ReceiverActivity, 16), AirnoteUi.dp(this@Gate04ReceiverActivity, 16), AirnoteUi.dp(this@Gate04ReceiverActivity, 16), AirnoteUi.dp(this@Gate04ReceiverActivity, 16))
+            background = AirnoteUi.rounded(this@Gate04ReceiverActivity, AirnoteUi.CLOUD, 20, AirnoteUi.MIST)
         }
         root.addView(walletStatus)
 
-        selectWalletButton = Button(this).apply {
-            text = "SELECT RECEIVE WALLET"
+        selectWalletButton = AirnoteUi.secondaryButton(this, "Select receive wallet").apply {
             setOnClickListener { connectReceiveWallet() }
         }
         root.addView(selectWalletButton)
 
-        requestButton = Button(this).apply {
-            text = "SHOW REQUEST QR — 1 OF 2"
+        requestButton = AirnoteUi.primaryButton(this, "Show request QR · 1 of 2").apply {
             isEnabled = false
             setOnClickListener { generateRequest() }
         }
@@ -106,8 +91,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
         }
         root.addView(qr)
 
-        scanTransferButton = Button(this).apply {
-            text = "SCAN PAYMENT — 2 OF 2"
+        scanTransferButton = AirnoteUi.primaryButton(this, "Scan payment · 2 of 2").apply {
             isEnabled = false
             setOnClickListener {
                 transferScanner.launch(
@@ -121,8 +105,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
         }
         root.addView(scanTransferButton)
 
-        openPaymentButton = Button(this).apply {
-            text = "OPEN PAYMENT / SETTLE"
+        openPaymentButton = AirnoteUi.primaryButton(this, "Open payment / Settle").apply {
             isEnabled = false
             setOnClickListener {
                 val id = acceptedPaymentId ?: return@setOnClickListener
@@ -134,20 +117,18 @@ class Gate04ReceiverActivity : AppCompatActivity() {
         }
         root.addView(openPaymentButton)
 
-        root.addView(Button(this).apply {
-            text = "VIEW ALL ACTIVITY"
+        root.addView(AirnoteUi.secondaryButton(this, "View all activity").apply {
             setOnClickListener { startActivity(Intent(this@Gate04ReceiverActivity, AirnoteHistoryActivity::class.java)) }
         })
 
-        status = TextView(this).apply {
-            textSize = 15f
+        status = AirnoteUi.body(this, "", 14f).apply {
             setTextIsSelectable(true)
-            setPadding(0, 12, 0, 12)
+            setPadding(AirnoteUi.dp(this@Gate04ReceiverActivity, 16), AirnoteUi.dp(this@Gate04ReceiverActivity, 16), AirnoteUi.dp(this@Gate04ReceiverActivity, 16), AirnoteUi.dp(this@Gate04ReceiverActivity, 16))
+            background = AirnoteUi.rounded(this@Gate04ReceiverActivity, AirnoteUi.CLOUD, 20, AirnoteUi.MIST)
         }
         root.addView(status)
 
-        copyAcceptedButton = Button(this).apply {
-            text = "TECHNICAL • COPY SETTLEMENT PAYLOAD"
+        copyAcceptedButton = AirnoteUi.secondaryButton(this, "Technical · Copy settlement payload").apply {
             isEnabled = false
             setOnClickListener {
                 val payload = acceptedPayload ?: return@setOnClickListener
