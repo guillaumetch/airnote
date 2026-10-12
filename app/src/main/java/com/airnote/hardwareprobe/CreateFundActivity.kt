@@ -24,6 +24,7 @@ class CreateFundActivity : AppCompatActivity() {
     private lateinit var twentyFourHourButton: Button
     private lateinit var previewView: TextView
     private lateinit var stateView: TextView
+    private lateinit var continueButton: Button
 
     private val amountButtons = linkedMapOf<Int, Button>()
     private val lifetimeButtons = linkedMapOf<Long, Button>()
@@ -61,11 +62,11 @@ class CreateFundActivity : AppCompatActivity() {
         })
         root.addView(top)
         root.addView(
-            AirnoteUi.body(this, "Prepare USDC now, then hand it off with two scans offline.", 13f),
-            AirnoteUi.marginParams(this, top = 4, bottom = 16)
+            AirnoteUi.body(this, "Add USDC to your Airnote to pay offline, anytime.", 13f),
+            AirnoteUi.marginParams(this, top = 4, bottom = 14)
         )
 
-        val createCard = AirnoteUi.card(this, 16)
+        val createCard = AirnoteUi.glassCard(this, 16)
         createCard.addView(AirnoteUi.sectionLabel(this, "Amount"))
 
         val amountRow = LinearLayout(this).apply {
@@ -137,7 +138,7 @@ class CreateFundActivity : AppCompatActivity() {
         createCard.addView(previewView, AirnoteUi.marginParams(this, top = 12))
         root.addView(createCard)
 
-        val skrCard = AirnoteUi.card(this, 14).apply {
+        val skrCard = AirnoteUi.glassCard(this, 14).apply {
             background = AirnoteUi.rounded(this@CreateFundActivity, "#FFF9EB", 20, "#F2E3B8")
         }
         val skrHeader = LinearLayout(this).apply {
@@ -159,7 +160,7 @@ class CreateFundActivity : AppCompatActivity() {
         }
         root.addView(createButton, AirnoteUi.marginParams(this, top = 14))
 
-        val continueButton = AirnoteUi.secondaryButton(this, "Continue latest Airnote").apply {
+        continueButton = AirnoteUi.secondaryButton(this, "Continue latest Airnote").apply {
             setOnClickListener {
                 val note = localAirnoteStore.latestIncomplete()
                 if (note == null) {
@@ -171,14 +172,14 @@ class CreateFundActivity : AppCompatActivity() {
         }
         root.addView(continueButton, AirnoteUi.marginParams(this, top = 8))
 
-        stateView = AirnoteUi.body(this, "", 13f).apply {
+        stateView = AirnoteUi.body(this, "", 12.5f).apply {
             setPadding(
                 AirnoteUi.dp(this@CreateFundActivity, 14),
                 AirnoteUi.dp(this@CreateFundActivity, 14),
                 AirnoteUi.dp(this@CreateFundActivity, 14),
                 AirnoteUi.dp(this@CreateFundActivity, 14)
             )
-            background = AirnoteUi.rounded(this@CreateFundActivity, AirnoteUi.CLOUD, 18, AirnoteUi.MIST)
+            background = AirnoteUi.rounded(this@CreateFundActivity, "#F8FCFF", 18, "#DDE7F0")
         }
         root.addView(stateView, AirnoteUi.marginParams(this, top = 12))
 
@@ -378,12 +379,15 @@ class CreateFundActivity : AppCompatActivity() {
     private fun refreshState() {
         if (!::stateView.isInitialized) return
         val note = localAirnoteStore.latestIncomplete()
-        val ready = localAirnoteStore.sendable().firstOrNull()
-        stateView.text = when {
-            ready != null -> ready.amountUsdc.toString() + " USDC · READY OFFLINE ✓"
-            note != null -> note.amountUsdc.toString() + " USDC · " + note.state.name.replace('_', ' ')
-            else -> "No Airnote is waiting for funding or certification."
+        if (::continueButton.isInitialized) {
+            continueButton.visibility = if (note != null) android.view.View.VISIBLE else android.view.View.GONE
         }
+        if (note == null) {
+            stateView.visibility = android.view.View.GONE
+            return
+        }
+        stateView.visibility = android.view.View.VISIBLE
+        stateView.text = note.amountUsdc.toString() + " USDC · " + note.state.name.replace('_', ' ')
     }
 
     private fun buildSenderMintRequest(
