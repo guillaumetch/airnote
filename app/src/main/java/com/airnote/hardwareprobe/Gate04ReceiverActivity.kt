@@ -135,7 +135,8 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                         .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
                         .setPrompt("Scan 2 of 2 • signed Airnote payment")
                         .setBeepEnabled(false)
-                        .setOrientationLocked(false)
+                        .setCaptureActivity(PortraitCaptureActivity::class.java)
+                        .setOrientationLocked(true)
                 )
             }
         }
