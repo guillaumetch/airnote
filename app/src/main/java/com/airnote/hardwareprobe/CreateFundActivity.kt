@@ -91,6 +91,16 @@ class CreateFundActivity : AppCompatActivity() {
                 this,
                 if (amount == 10) "10 USDC\nSKR+" else "$amount USDC"
             ).apply {
+                gravity = Gravity.CENTER
+                includeFontPadding = false
+                maxLines = 2
+                setPadding(
+                    AirnoteUi.dp(this@CreateFundActivity, 4),
+                    0,
+                    AirnoteUi.dp(this@CreateFundActivity, 4),
+                    0
+                )
+                if (amount == 10) textSize = 13f
                 setOnClickListener {
                     selectedAmountUsdc = amount
                     refreshUi()
@@ -100,7 +110,7 @@ class CreateFundActivity : AppCompatActivity() {
             if (amount == 10) tenUsdcButton = button
             amountRow.addView(
                 button,
-                LinearLayout.LayoutParams(0, AirnoteUi.dp(this, 56), 1f).apply {
+                LinearLayout.LayoutParams(0, AirnoteUi.dp(this, 64), 1f).apply {
                     marginStart = AirnoteUi.dp(this@CreateFundActivity, 3)
                     marginEnd = AirnoteUi.dp(this@CreateFundActivity, 3)
                 }
@@ -118,6 +128,18 @@ class CreateFundActivity : AppCompatActivity() {
                 preset.label
             }
             val button = AirnoteUi.secondaryButton(this, label).apply {
+                gravity = Gravity.CENTER
+                includeFontPadding = false
+                maxLines = 2
+                setPadding(
+                    AirnoteUi.dp(this@CreateFundActivity, 4),
+                    0,
+                    AirnoteUi.dp(this@CreateFundActivity, 4),
+                    0
+                )
+                if (preset.seconds == SkrAccessPolicy.RESERVE_PLUS_MAX_LIFETIME_SECONDS) {
+                    textSize = 13f
+                }
                 setOnClickListener {
                     selectedLifetimeSeconds = preset.seconds
                     refreshUi()
@@ -130,7 +152,7 @@ class CreateFundActivity : AppCompatActivity() {
             val row = if (index < 2) lifeRowOne else lifeRowTwo
             row.addView(
                 button,
-                LinearLayout.LayoutParams(0, AirnoteUi.dp(this, 62), 1f).apply {
+                LinearLayout.LayoutParams(0, AirnoteUi.dp(this, 64), 1f).apply {
                     marginStart = AirnoteUi.dp(this@CreateFundActivity, 3)
                     marginEnd = AirnoteUi.dp(this@CreateFundActivity, 3)
                 }
