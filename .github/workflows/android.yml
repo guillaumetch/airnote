@@ -29,6 +29,32 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Configure optional stable debug signing
+        shell: bash
+        env:
+          AIRNOTE_ANDROID_KEYSTORE_B64: ${{ secrets.AIRNOTE_ANDROID_KEYSTORE_B64 }}
+          AIRNOTE_ANDROID_KEYSTORE_PASSWORD_SECRET: ${{ secrets.AIRNOTE_ANDROID_KEYSTORE_PASSWORD }}
+          AIRNOTE_ANDROID_KEY_ALIAS_SECRET: ${{ secrets.AIRNOTE_ANDROID_KEY_ALIAS }}
+          AIRNOTE_ANDROID_KEY_PASSWORD_SECRET: ${{ secrets.AIRNOTE_ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${AIRNOTE_ANDROID_KEYSTORE_B64:-}" ]]; then
+            echo "Stable signing is not configured; using the runner debug key."
+            exit 0
+          fi
+
+          : "${AIRNOTE_ANDROID_KEYSTORE_PASSWORD_SECRET:?AIRNOTE_ANDROID_KEYSTORE_PASSWORD is required when AIRNOTE_ANDROID_KEYSTORE_B64 is set}"
+          : "${AIRNOTE_ANDROID_KEY_ALIAS_SECRET:?AIRNOTE_ANDROID_KEY_ALIAS is required when AIRNOTE_ANDROID_KEYSTORE_B64 is set}"
+          : "${AIRNOTE_ANDROID_KEY_PASSWORD_SECRET:?AIRNOTE_ANDROID_KEY_PASSWORD is required when AIRNOTE_ANDROID_KEYSTORE_B64 is set}"
+
+          printf '%s' "$AIRNOTE_ANDROID_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/airnote-ci.jks"
+          chmod 600 "$RUNNER_TEMP/airnote-ci.jks"
+
+          echo "AIRNOTE_ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/airnote-ci.jks" >> "$GITHUB_ENV"
+          echo "AIRNOTE_ANDROID_KEYSTORE_PASSWORD=$AIRNOTE_ANDROID_KEYSTORE_PASSWORD_SECRET" >> "$GITHUB_ENV"
+          echo "AIRNOTE_ANDROID_KEY_ALIAS=$AIRNOTE_ANDROID_KEY_ALIAS_SECRET" >> "$GITHUB_ENV"
+          echo "AIRNOTE_ANDROID_KEY_PASSWORD=$AIRNOTE_ANDROID_KEY_PASSWORD_SECRET" >> "$GITHUB_ENV"
+
       - name: Unit tests
         run: gradle testDebugUnitTest
 

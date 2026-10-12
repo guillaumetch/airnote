@@ -221,6 +221,18 @@ class Gate04ReceiverActivity : AppCompatActivity() {
 
     private fun renderWalletBinding() {
         val binding = walletBindingStore.current()
+        val handoffActive = currentRequest != null && acceptedPaymentId == null
+        val paymentAccepted = acceptedPaymentId != null
+        val controls = ReceiveControlPolicy.derive(
+            hasWalletBinding = binding != null,
+            hasActiveRequest = handoffActive,
+            hasAcceptedPayment = paymentAccepted
+        )
+
+        selectWalletButton.isEnabled = controls.selectWalletEnabled
+        requestButton.isEnabled = controls.requestEnabled
+        requestButton.text = controls.requestLabel
+
         if (binding == null) {
             walletStatus.text = buildString {
                 appendLine("RECEIVE WALLET NOT SET")
@@ -228,8 +240,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                 append("AIRNOTE stores only the selected public key.")
             }
             selectWalletButton.text = "SELECT RECEIVE WALLET"
-            requestButton.isEnabled = false
-            if (currentRequest == null) {
+            if (currentRequest == null && !paymentAccepted) {
                 status.text = "Select the wallet that should receive USDC after settlement."
             }
         } else {
@@ -240,8 +251,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                 append("The recipient public key is cached locally. Scan 1 can be created without reconnecting the wallet.")
             }
             selectWalletButton.text = "CHANGE RECEIVE WALLET"
-            requestButton.isEnabled = true
-            if (currentRequest == null && acceptedPaymentId == null) {
+            if (!handoffActive && !paymentAccepted) {
                 status.text = "Wallet binding ready. You can disconnect now and start the two-scan handoff."
             }
         }
@@ -387,10 +397,9 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             copyAcceptedButton.isEnabled = true
             openPaymentButton.isEnabled = true
             scanTransferButton.isEnabled = false
-            selectWalletButton.isEnabled = true
-            requestButton.isEnabled = walletBindingStore.current() != null
             qr.setImageDrawable(null)
             phase.text = "OFFLINE HANDOFF COMPLETE  ✓"
+            renderWalletBinding()
             status.text = buildString {
                 appendLine(if (existing == null) "AIRNOTE RECEIVED" else "AIRNOTE ALREADY RECEIVED")
                 appendLine("${transfer.airnote.mintCore.amountBaseUnits / 1_000_000.0} USDC")
