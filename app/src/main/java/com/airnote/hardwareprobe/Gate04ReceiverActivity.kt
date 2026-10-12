@@ -302,7 +302,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             }
             selectWalletButton.text = "CHANGE RECEIVE WALLET"
             if (!handoffActive && !paymentAccepted) {
-                status.text = "Ready for Scan 1. No internet is required for the handoff."
+                status.text = "Ready for Scan 1. No internet is required for the handoff. Settlement uses Solana Devnet."
             }
         }
     }
