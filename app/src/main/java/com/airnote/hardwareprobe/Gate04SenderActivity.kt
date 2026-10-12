@@ -69,15 +69,29 @@ class Gate04SenderActivity : AppCompatActivity() {
         steps.addView(AirnoteUi.statusPill(this, "2  Show payment", false), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         root.addView(steps, AirnoteUi.marginParams(this, bottom = 14))
 
-        phase = AirnoteUi.statusPill(this, "Choose a Ready Offline Airnote", false)
-        root.addView(phase, AirnoteUi.marginParams(this, bottom = 14))
+        val paymentCard = AirnoteUi.glassCard(this, 16)
+        val paymentHeader = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        paymentHeader.addView(AirnoteUi.iconBubble(this, "➤", 42))
+        val paymentCopy = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        paymentCopy.addView(AirnoteUi.title(this, "Send", 17f))
+        paymentCopy.addView(AirnoteUi.body(this, "Send USDC, online or offline.", 11.5f))
+        paymentHeader.addView(paymentCopy, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+            marginStart = AirnoteUi.dp(this@Gate04SenderActivity, 10)
+        })
+        paymentCard.addView(paymentHeader)
 
-        root.addView(AirnoteUi.sectionLabel(this, "Ready Offline"))
+        phase = AirnoteUi.statusPill(this, "Choose a Ready Offline Airnote", false)
+        paymentCard.addView(phase, AirnoteUi.marginParams(this, top = 12, bottom = 12))
+
+        paymentCard.addView(AirnoteUi.sectionLabel(this, "Ready Offline"))
         localNotesContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, 6, 0, 12)
+            setPadding(0, 6, 0, 8)
         }
-        root.addView(localNotesContainer)
+        paymentCard.addView(localNotesContainer)
 
         val recoveryButton = AirnoteUi.compactButton(this, "Recovery import").apply {
             alpha = 0.55f
@@ -97,20 +111,21 @@ class Gate04SenderActivity : AppCompatActivity() {
                 )
             }
         }
-        root.addView(scanRequestButton, AirnoteUi.marginParams(this, top = 10))
+        paymentCard.addView(scanRequestButton, AirnoteUi.marginParams(this, top = 8))
 
         qr = ImageView(this).apply {
             adjustViewBounds = true
             setPadding(0, 24, 0, 24)
         }
-        root.addView(qr)
+        paymentCard.addView(qr)
 
         status = AirnoteUi.body(this, "Choose a Ready Offline Airnote to begin.", 13f).apply {
             setTextIsSelectable(true)
             setPadding(AirnoteUi.dp(this@Gate04SenderActivity, 16), AirnoteUi.dp(this@Gate04SenderActivity, 16), AirnoteUi.dp(this@Gate04SenderActivity, 16), AirnoteUi.dp(this@Gate04SenderActivity, 16))
             background = AirnoteUi.rounded(this@Gate04SenderActivity, "#F8FCFF", 20, "#DDE7F0")
         }
-        root.addView(status, AirnoteUi.marginParams(this, top = 10))
+        paymentCard.addView(status, AirnoteUi.marginParams(this, top = 10))
+        root.addView(paymentCard)
 
         copyTransferButton = AirnoteUi.compactButton(this, "Technical · Copy signed payload").apply {
             isEnabled = false
