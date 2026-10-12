@@ -113,6 +113,26 @@ object AirnoteUi {
             background = rounded(context, if (success) "#E7FAF2" else SKY_100, 999)
         }
 
+    fun devnetNotice(context: Context, detail: String = "AIRNOTE payments use Solana Devnet."): LinearLayout =
+        LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(context, 12), dp(context, 10), dp(context, 12), dp(context, 10))
+            background = rounded(context, "#EEF6FF", 16, "#CFE2F7")
+
+            addView(TextView(context).apply {
+                text = "●"
+                textSize = 12f
+                setTextColor(color(AIR))
+            })
+
+            addView(TextView(context).apply {
+                text = "  Solana Devnet\n" + detail
+                textSize = 11.5f
+                setTextColor(color(AIR_DEEP))
+            })
+        }
+
     fun networkBadge(context: Context): TextView =
         TextView(context).apply {
             text = "●  Solana Devnet"
