@@ -3,6 +3,7 @@ package com.airnote.hardwareprobe
 import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -47,23 +48,37 @@ class MainActivity : AppCompatActivity() {
             AirnoteUi.marginParams(this, top = 2, bottom = 14)
         )
 
+        val heroFrame = FrameLayout(this)
+        heroFrame.addView(
+            AirnoteHeroView(this),
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                AirnoteUi.dp(this, 178)
+            )
+        )
         val hero = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(
                 AirnoteUi.dp(this@MainActivity, 18),
                 AirnoteUi.dp(this@MainActivity, 18),
                 AirnoteUi.dp(this@MainActivity, 18),
-                AirnoteUi.dp(this@MainActivity, 18)
+                AirnoteUi.dp(this@MainActivity, 16)
             )
-            background = AirnoteUi.heroBackground(this@MainActivity)
         }
-        hero.addView(AirnoteUi.sectionLabel(this, "USDC Offline Reserve"))
+        hero.addView(AirnoteUi.sectionLabel(this, "USDC Balance"))
         heroReserveAmountView = AirnoteUi.title(this, "0.00 USDC", 31f)
-        hero.addView(heroReserveAmountView, AirnoteUi.marginParams(this, top = 6))
-        hero.addView(AirnoteUi.statusPill(this, "●  Ready Offline", true), AirnoteUi.marginParams(this, top = 8))
-        heroReserveMetaView = AirnoteUi.body(this, "Create an Airnote to prepare funds for offline use.", 12f)
-        hero.addView(heroReserveMetaView, AirnoteUi.marginParams(this, top = 8))
-        root.addView(hero, AirnoteUi.marginParams(this, bottom = 12))
+        hero.addView(heroReserveAmountView, AirnoteUi.marginParams(this, top = 4))
+        hero.addView(AirnoteUi.statusPill(this, "●  Ready Offline", true), AirnoteUi.marginParams(this, top = 7))
+        heroReserveMetaView = AirnoteUi.body(this, "Create an Airnote to prepare funds for offline use.", 11.5f)
+        hero.addView(heroReserveMetaView, AirnoteUi.marginParams(this, top = 7))
+        heroFrame.addView(
+            hero,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+        root.addView(heroFrame, AirnoteUi.marginParams(this, height = AirnoteUi.dp(this, 178), bottom = 12))
 
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -85,20 +100,16 @@ class MainActivity : AppCompatActivity() {
                     AirnoteUi.dp(this@MainActivity, 4),
                     AirnoteUi.dp(this@MainActivity, 10)
                 )
-                background = AirnoteUi.rounded(this@MainActivity, AirnoteUi.CLOUD, 18, AirnoteUi.MIST)
+                background = AirnoteUi.rounded(this@MainActivity, "#FCFEFF", 18, "#DDE7F0")
+                elevation = AirnoteUi.dp(this@MainActivity, 1).toFloat()
                 isClickable = true
                 isFocusable = true
                 setOnClickListener { startActivity(Intent(this@MainActivity, target)) }
             }
-            tile.addView(TextView(this).apply {
-                text = icon
-                textSize = 22f
-                gravity = Gravity.CENTER
-                setTextColor(AirnoteUi.color(AirnoteUi.AIR))
-            })
+            tile.addView(AirnoteUi.iconBubble(this, icon, 40))
             tile.addView(TextView(this).apply {
                 text = label
-                textSize = 11.5f
+                textSize = 11f
                 gravity = Gravity.CENTER
                 setTextColor(AirnoteUi.color(AirnoteUi.NIGHT))
             }, AirnoteUi.marginParams(this, top = 4))
@@ -112,16 +123,12 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(actions, AirnoteUi.marginParams(this, bottom = 12))
 
-        val readyCard = AirnoteUi.card(this, 14)
+        val readyCard = AirnoteUi.glassCard(this, 14)
         val readyRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        readyRow.addView(TextView(this).apply {
-            text = "◉"
-            textSize = 20f
-            setTextColor(AirnoteUi.color(AirnoteUi.AIR))
-        })
+        readyRow.addView(AirnoteUi.iconBubble(this, "◌", 38))
         val readyCopy = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         readyCopy.addView(AirnoteUi.title(this, "Ready Offline", 15f))
         readyCopy.addView(AirnoteUi.body(this, "Two scans. No internet required.", 12f))
@@ -148,7 +155,7 @@ class MainActivity : AppCompatActivity() {
         })
         root.addView(recentHeader, AirnoteUi.marginParams(this, bottom = 8))
 
-        recentActivityContainer = AirnoteUi.card(this, 12)
+        recentActivityContainer = AirnoteUi.glassCard(this, 12)
         root.addView(recentActivityContainer)
 
         setContentView(ScrollView(this).apply {
