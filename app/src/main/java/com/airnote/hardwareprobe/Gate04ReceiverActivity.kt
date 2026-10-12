@@ -74,33 +74,47 @@ class Gate04ReceiverActivity : AppCompatActivity() {
         steps.addView(AirnoteUi.statusPill(this, "2  Scan payment", false), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         root.addView(steps, AirnoteUi.marginParams(this, bottom = 14))
 
-        phase = AirnoteUi.statusPill(this, "Scan 1 of 2 · Create your request", false)
-        root.addView(phase, AirnoteUi.marginParams(this, bottom = 14))
+        val receiveCard = AirnoteUi.glassCard(this, 16)
+        val receiveHeader = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        receiveHeader.addView(AirnoteUi.iconBubble(this, "⌗", 42))
+        val receiveCopy = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        receiveCopy.addView(AirnoteUi.title(this, "Receive", 17f))
+        receiveCopy.addView(AirnoteUi.body(this, "Show your code to receive USDC.", 11.5f))
+        receiveHeader.addView(receiveCopy, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+            marginStart = AirnoteUi.dp(this@Gate04ReceiverActivity, 10)
+        })
+        receiveCard.addView(receiveHeader)
 
-        walletStatus = AirnoteUi.body(this, "", 14f).apply {
+        phase = AirnoteUi.statusPill(this, "Scan 1 of 2 · Create your request", false)
+        receiveCard.addView(phase, AirnoteUi.marginParams(this, top = 12, bottom = 12))
+
+        walletStatus = AirnoteUi.body(this, "", 13f).apply {
             setTextIsSelectable(true)
             setPadding(AirnoteUi.dp(this@Gate04ReceiverActivity, 16), AirnoteUi.dp(this@Gate04ReceiverActivity, 16), AirnoteUi.dp(this@Gate04ReceiverActivity, 16), AirnoteUi.dp(this@Gate04ReceiverActivity, 16))
             background = AirnoteUi.rounded(this@Gate04ReceiverActivity, "#F8FCFF", 20, "#DDE7F0")
         }
-        root.addView(walletStatus)
+        receiveCard.addView(walletStatus)
 
         selectWalletButton = AirnoteUi.secondaryButton(this, "Select receive wallet").apply {
             setOnClickListener { connectReceiveWallet() }
         }
-        root.addView(selectWalletButton, AirnoteUi.marginParams(this, top = 8))
+        receiveCard.addView(selectWalletButton, AirnoteUi.marginParams(this, top = 8))
 
         requestButton = AirnoteUi.primaryButton(this, "Show request QR · 1 of 2").apply {
             isEnabled = false
             alpha = 0.38f
             setOnClickListener { generateRequest() }
         }
-        root.addView(requestButton, AirnoteUi.marginParams(this, top = 8))
+        receiveCard.addView(requestButton, AirnoteUi.marginParams(this, top = 8))
 
         qr = ImageView(this).apply {
             adjustViewBounds = true
             setPadding(0, 24, 0, 24)
         }
-        root.addView(qr)
+        receiveCard.addView(qr)
 
         scanTransferButton = AirnoteUi.primaryButton(this, "Scan payment · 2 of 2").apply {
             isEnabled = false
@@ -115,7 +129,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                 )
             }
         }
-        root.addView(scanTransferButton, AirnoteUi.marginParams(this, top = 8))
+        receiveCard.addView(scanTransferButton, AirnoteUi.marginParams(this, top = 8))
 
         openPaymentButton = AirnoteUi.primaryButton(this, "Open payment / Settle").apply {
             isEnabled = false
@@ -128,9 +142,9 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                 )
             }
         }
-        root.addView(openPaymentButton, AirnoteUi.marginParams(this, top = 8))
+        receiveCard.addView(openPaymentButton, AirnoteUi.marginParams(this, top = 8))
 
-        root.addView(AirnoteUi.compactButton(this, "View activity").apply {
+        receiveCard.addView(AirnoteUi.compactButton(this, "View activity").apply {
             setOnClickListener { startActivity(Intent(this@Gate04ReceiverActivity, AirnoteHistoryActivity::class.java)) }
         })
 
@@ -139,7 +153,8 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             setPadding(AirnoteUi.dp(this@Gate04ReceiverActivity, 16), AirnoteUi.dp(this@Gate04ReceiverActivity, 16), AirnoteUi.dp(this@Gate04ReceiverActivity, 16), AirnoteUi.dp(this@Gate04ReceiverActivity, 16))
             background = AirnoteUi.rounded(this@Gate04ReceiverActivity, AirnoteUi.CLOUD, 20, AirnoteUi.MIST)
         }
-        root.addView(status, AirnoteUi.marginParams(this, top = 8))
+        receiveCard.addView(status, AirnoteUi.marginParams(this, top = 8))
+        root.addView(receiveCard)
 
         copyAcceptedButton = AirnoteUi.compactButton(this, "Technical · Copy settlement payload").apply {
             isEnabled = false
