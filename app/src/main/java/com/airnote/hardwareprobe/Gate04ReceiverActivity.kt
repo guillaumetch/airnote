@@ -140,7 +140,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                 clipboard.setPrimaryClip(ClipData.newPlainText("AIRNOTE accepted transfer", payload))
             }
         }
-        root.addView(copyAcceptedButton)
+        copyAcceptedButton.visibility = android.view.View.GONE
 
         setContentView(ScrollView(this).apply {
             isFillViewport = true
@@ -237,13 +237,13 @@ class Gate04ReceiverActivity : AppCompatActivity() {
         } else {
             walletStatus.text = buildString {
                 appendLine("OFFLINE RECEIVE READY  ✓")
-                appendLine(binding.publicKeyBase58)
+                appendLine(binding.publicKeyBase58.take(6) + "…" + binding.publicKeyBase58.takeLast(6))
                 appendLine()
-                append("The recipient public key is cached locally. Scan 1 can be created without reconnecting the wallet.")
+                append("Wallet binding is cached locally. You can disconnect and complete both scans offline.")
             }
             selectWalletButton.text = "CHANGE RECEIVE WALLET"
             if (!handoffActive && !paymentAccepted) {
-                status.text = "Wallet binding ready. You can disconnect now and start the two-scan handoff."
+                status.text = "Ready for Scan 1. No internet is required for the handoff."
             }
         }
     }
