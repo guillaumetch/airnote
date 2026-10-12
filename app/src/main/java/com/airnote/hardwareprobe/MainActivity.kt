@@ -3,7 +3,10 @@ package com.airnote.hardwareprobe
 import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
+import android.view.ViewOutlineProvider
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -24,12 +27,13 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(
                 AirnoteUi.dp(this@MainActivity, 22),
-                AirnoteUi.dp(this@MainActivity, 24),
+                AirnoteUi.dp(this@MainActivity, 18),
                 AirnoteUi.dp(this@MainActivity, 22),
                 AirnoteUi.dp(this@MainActivity, 28)
             )
             setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
         }
+        AirnoteUi.applyTopInset(root)
 
         val brandRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -58,9 +62,16 @@ class MainActivity : AppCompatActivity() {
             AirnoteUi.marginParams(this, top = 4, bottom = 12)
         )
 
-        val heroFrame = FrameLayout(this)
+        val heroFrame = FrameLayout(this).apply {
+            background = AirnoteUi.rounded(this@MainActivity, "#FFFFFF", 24, "#D3E3EF")
+            clipToOutline = true
+            outlineProvider = ViewOutlineProvider.BACKGROUND
+        }
         heroFrame.addView(
-            AirnoteHeroView(this),
+            ImageView(this).apply {
+                setImageResource(R.drawable.airnote_hero)
+                scaleType = ImageView.ScaleType.CENTER_CROP
+            },
             FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 AirnoteUi.dp(this, 178)
@@ -83,6 +94,15 @@ class MainActivity : AppCompatActivity() {
         hero.addView(heroReserveMetaView, AirnoteUi.marginParams(this, top = 7))
         heroFrame.addView(
             hero,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+        heroFrame.addView(
+            View(this).apply {
+                background = AirnoteUi.rounded(this@MainActivity, "#00FFFFFF", 24, "#D3E3EF")
+            },
             FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
