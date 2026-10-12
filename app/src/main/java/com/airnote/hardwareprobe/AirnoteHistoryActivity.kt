@@ -101,13 +101,78 @@ class AirnoteHistoryActivity : AppCompatActivity() {
             }
         }
 
-        setContentView(
-            ScrollView(this).apply {
-                isFillViewport = true
-                setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
-                addView(root)
-            }
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
+            addView(root)
+        }
+
+        val shell = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
+        }
+        shell.addView(
+            scroll,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            )
         )
+
+        val nav = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(
+                AirnoteUi.dp(this@AirnoteHistoryActivity, 12),
+                AirnoteUi.dp(this@AirnoteHistoryActivity, 7),
+                AirnoteUi.dp(this@AirnoteHistoryActivity, 12),
+                AirnoteUi.dp(this@AirnoteHistoryActivity, 7)
+            )
+            background = AirnoteUi.rounded(this@AirnoteHistoryActivity, "#FCFEFF", 0, "#DDE7F0")
+        }
+        val navItems = listOf(
+            Triple("⌂", "Home", MainActivity::class.java),
+            Triple("➤", "Send", Gate04SenderActivity::class.java),
+            Triple("⌗", "Receive", Gate04ReceiverActivity::class.java),
+            Triple("▤", "Activity", AirnoteHistoryActivity::class.java)
+        )
+        navItems.forEachIndexed { index, (glyph, label, target) ->
+            val item = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                isClickable = true
+                setOnClickListener {
+                    if (target == MainActivity::class.java) {
+                        startActivity(Intent(this@AirnoteHistoryActivity, target).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
+                    } else if (target != AirnoteHistoryActivity::class.java) {
+                        startActivity(Intent(this@AirnoteHistoryActivity, target))
+                    }
+                }
+            }
+            item.addView(android.widget.TextView(this).apply {
+                text = glyph
+                textSize = 18f
+                gravity = Gravity.CENTER
+                setTextColor(AirnoteUi.color(if (index == 3) AirnoteUi.AIR else AirnoteUi.SLATE))
+            })
+            item.addView(android.widget.TextView(this).apply {
+                text = label
+                textSize = 10f
+                gravity = Gravity.CENTER
+                setTextColor(AirnoteUi.color(if (index == 3) AirnoteUi.AIR else AirnoteUi.SLATE))
+            })
+            nav.addView(item, LinearLayout.LayoutParams(0, AirnoteUi.dp(this, 50), 1f))
+        }
+        shell.addView(
+            nav,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                AirnoteUi.dp(this, 58)
+            )
+        )
+
+        setContentView(shell)
     }
 
     private fun displayTime(epochSeconds: Long): String =
