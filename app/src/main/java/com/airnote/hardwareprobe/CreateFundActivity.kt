@@ -183,10 +183,18 @@ class CreateFundActivity : AppCompatActivity() {
         }
         root.addView(stateView, AirnoteUi.marginParams(this, top = 12))
 
-        setContentView(ScrollView(this).apply {
+        val scroll = ScrollView(this).apply {
             isFillViewport = true
+            setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
             addView(root)
-        })
+        }
+        setContentView(
+            AirnoteBottomNav.attach(
+                this,
+                scroll,
+                null
+            )
+        )
 
         refreshSkrAccessControls()
         refreshUi()
