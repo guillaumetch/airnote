@@ -178,11 +178,10 @@ class Gate04SenderActivity : AppCompatActivity() {
             return
         }
 
-        notes.forEach { note ->
-            localNotesContainer.addView(AirnoteUi.secondaryButton(this, note.amountUsdc.toString() + " USDC · " +
-                    if (note.state == LocalAirnoteState.HANDOFF_AUTHORIZED) "HANDOFF AUTHORIZED" else "READY OFFLINE").apply {
-                text = note.amountUsdc.toString() + " USDC • " +
-                    if (note.state == LocalAirnoteState.HANDOFF_AUTHORIZED) "HANDOFF AUTHORIZED" else "READY OFFLINE"
+        notes.forEachIndexed { index, note ->
+            val row = AirnoteUi.card(this, 12).apply {
+                isClickable = true
+                isFocusable = true
                 setOnClickListener {
                     runCatching {
                         val certificateJson = requireNotNull(note.certificateJson) {
@@ -191,7 +190,34 @@ class Gate04SenderActivity : AppCompatActivity() {
                         loadCertifiedAirnote(Gate04CertificateJson.parse(certificateJson))
                     }.onFailure(::renderImportFailure)
                 }
+            }
+            val line = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            line.addView(AirnoteUi.iconBubble(this, if (index % 2 == 0) "◉" else "▣", 38))
+            val copy = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(AirnoteUi.dp(this@Gate04SenderActivity, 10), 0, 0, 0)
+            }
+            copy.addView(AirnoteUi.title(this, note.amountUsdc.toString() + " USDC", 14.5f))
+            copy.addView(
+                AirnoteUi.body(
+                    this,
+                    if (note.state == LocalAirnoteState.HANDOFF_AUTHORIZED) "Handoff authorized" else "Ready Offline",
+                    11.5f
+                ),
+                AirnoteUi.marginParams(this, top = 2)
+            )
+            line.addView(copy, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            line.addView(AirnoteUi.body(this, "›", 24f).apply {
+                setTextColor(AirnoteUi.color(AirnoteUi.SLATE))
             })
+            row.addView(line)
+            localNotesContainer.addView(
+                row,
+                AirnoteUi.marginParams(this, bottom = if (index == notes.lastIndex) 0 else 6)
+            )
         }
     }
 
