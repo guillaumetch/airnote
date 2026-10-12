@@ -113,6 +113,16 @@ object AirnoteUi {
             background = rounded(context, if (success) "#E7FAF2" else SKY_100, 999)
         }
 
+    fun networkBadge(context: Context): TextView =
+        TextView(context).apply {
+            text = "●  Solana Devnet"
+            textSize = 11.5f
+            setTextColor(color(AIR_DEEP))
+            setTypeface(typeface, Typeface.BOLD)
+            setPadding(dp(context, 11), dp(context, 6), dp(context, 11), dp(context, 6))
+            background = rounded(context, "#EAF5FF", 999, "#CFE3F7")
+        }
+
     fun primaryButton(context: Context, value: String): Button =
         Button(context).apply {
             text = value
