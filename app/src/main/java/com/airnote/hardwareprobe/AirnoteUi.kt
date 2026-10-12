@@ -8,6 +8,8 @@ import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 
 object AirnoteUi {
     const val AIR = "#2478F3"
@@ -156,6 +158,19 @@ object AirnoteUi {
             16,
             if (selected) AIR else MIST
         )
+    }
+
+    fun applyTopInset(view: View) {
+        val left = view.paddingLeft
+        val top = view.paddingTop
+        val right = view.paddingRight
+        val bottom = view.paddingBottom
+        ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
+            val systemTop = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
+            v.setPadding(left, top + systemTop, right, bottom)
+            insets
+        }
+        ViewCompat.requestApplyInsets(view)
     }
 
     fun spacer(context: Context, heightDp: Int): View =
