@@ -49,8 +49,19 @@ class AirnoteFundingCoordinator(
             when (val result = walletAdapter.transact(sender) { authResult ->
                 val wallet = authResult.accounts.firstOrNull()?.publicKey
                     ?: error("wallet authorization returned no account")
+                val currentNote = requireNotNull(store.get(noteIdHex))
+                currentNote.skrAccessWalletBase58?.let { expectedWallet ->
+                    val fundingWallet = Base58.encode(wallet)
+                    require(fundingWallet == expectedWallet) {
+                        "SKR Reserve+ must be funded by the same wallet that unlocked access"
+                    }
+                    val skr = SkrAccessVerifier().check(wallet)
+                    require(skr.isHolder) {
+                        "SKR Reserve+ wallet no longer holds liquid SKR"
+                    }
+                }
                 val plan = AirnoteFundingBuilder.prepare(
-                    requireNotNull(store.get(noteIdHex)),
+                    currentNote,
                     wallet,
                     rpc
                 )
