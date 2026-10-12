@@ -68,6 +68,14 @@ class CreateFundActivity : AppCompatActivity() {
         )
         root.addView(
             AirnoteUi.networkBadge(this),
+            AirnoteUi.marginParams(this, bottom = 4)
+        )
+        root.addView(
+            AirnoteUi.body(
+                this,
+                "AIRNOTE beta uses Devnet. Switch your wallet to Solana Devnet before funding.",
+                11.5f
+            ),
             AirnoteUi.marginParams(this, bottom = 14)
         )
 
