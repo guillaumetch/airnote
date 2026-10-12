@@ -53,45 +53,27 @@ class Gate04SenderActivity : AppCompatActivity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(32, 32, 32, 48)
+            setPadding(AirnoteUi.dp(this@Gate04SenderActivity, 24), AirnoteUi.dp(this@Gate04SenderActivity, 28), AirnoteUi.dp(this@Gate04SenderActivity, 24), AirnoteUi.dp(this@Gate04SenderActivity, 48))
+            setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
         }
-        root.addView(TextView(this).apply {
-            text = "SEND AIRNOTE"
-            textSize = 28f
-            gravity = Gravity.CENTER_HORIZONTAL
-        })
-        root.addView(TextView(this).apply {
-            text = "Two scans. No internet required."
-            textSize = 16f
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, 4, 0, 24)
-        })
+        root.addView(AirnoteUi.sectionLabel(this, "Send Airnote"))
+        root.addView(AirnoteUi.title(this, "Two scans. No internet required.", 24f), AirnoteUi.marginParams(this, top = 4, bottom = 16))
 
-        phase = TextView(this).apply {
-            text = "CHOOSE A READY AIRNOTE"
-            textSize = 18f
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, 8, 0, 20)
-        }
-        root.addView(phase)
+        phase = AirnoteUi.statusPill(this, "CHOOSE A READY AIRNOTE", false)
+        root.addView(phase, AirnoteUi.marginParams(this, bottom = 16))
 
-        root.addView(TextView(this).apply {
-            text = "YOUR OFFLINE AIRNOTES"
-            textSize = 14f
-        })
+        root.addView(AirnoteUi.sectionLabel(this, "Your offline Airnotes"))
         localNotesContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, 6, 0, 12)
         }
         root.addView(localNotesContainer)
 
-        root.addView(Button(this).apply {
-            text = "IMPORT CERTIFICATE / RECOVERY"
+        root.addView(AirnoteUi.secondaryButton(this, "Import certificate · recovery").apply {
             setOnClickListener { openCertificate.launch(arrayOf("application/json", "text/plain", "*/*")) }
-        })
+        }, AirnoteUi.marginParams(this, top = 8, bottom = 8))
 
-        scanRequestButton = Button(this).apply {
-            text = "SCAN REQUEST — 1 OF 2"
+        scanRequestButton = AirnoteUi.primaryButton(this, "Scan request · 1 of 2").apply {
             isEnabled = false
             setOnClickListener {
                 requestScanner.launch(
@@ -111,15 +93,14 @@ class Gate04SenderActivity : AppCompatActivity() {
         }
         root.addView(qr)
 
-        status = TextView(this).apply {
-            text = "Choose a READY OFFLINE Airnote. File import is recovery-only."
-            textSize = 15f
+        status = AirnoteUi.body(this, "Choose a READY OFFLINE Airnote. File import is recovery-only.", 14f).apply {
             setTextIsSelectable(true)
+            setPadding(AirnoteUi.dp(this@Gate04SenderActivity, 16), AirnoteUi.dp(this@Gate04SenderActivity, 16), AirnoteUi.dp(this@Gate04SenderActivity, 16), AirnoteUi.dp(this@Gate04SenderActivity, 16))
+            background = AirnoteUi.rounded(this@Gate04SenderActivity, AirnoteUi.CLOUD, 20, AirnoteUi.MIST)
         }
         root.addView(status)
 
-        copyTransferButton = Button(this).apply {
-            text = "TECHNICAL • COPY SIGNED PAYLOAD"
+        copyTransferButton = AirnoteUi.secondaryButton(this, "Technical · Copy signed payload").apply {
             isEnabled = false
             setOnClickListener {
                 val payload = transferQr ?: return@setOnClickListener
@@ -150,7 +131,8 @@ class Gate04SenderActivity : AppCompatActivity() {
         }
 
         notes.forEach { note ->
-            localNotesContainer.addView(Button(this).apply {
+            localNotesContainer.addView(AirnoteUi.secondaryButton(this, note.amountUsdc.toString() + " USDC · " +
+                    if (note.state == LocalAirnoteState.HANDOFF_AUTHORIZED) "HANDOFF AUTHORIZED" else "READY OFFLINE").apply {
                 text = note.amountUsdc.toString() + " USDC • " +
                     if (note.state == LocalAirnoteState.HANDOFF_AUTHORIZED) "HANDOFF AUTHORIZED" else "READY OFFLINE"
                 setOnClickListener {
