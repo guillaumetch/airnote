@@ -61,6 +61,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             setPadding(AirnoteUi.dp(this@Gate04ReceiverActivity, 24), AirnoteUi.dp(this@Gate04ReceiverActivity, 28), AirnoteUi.dp(this@Gate04ReceiverActivity, 24), AirnoteUi.dp(this@Gate04ReceiverActivity, 48))
             setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
         }
+        AirnoteUi.applyTopInset(root)
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
