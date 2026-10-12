@@ -54,42 +54,39 @@ class MainActivity : AppCompatActivity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(36, 36, 36, 56)
+            setPadding(AirnoteUi.dp(this@MainActivity, 24), AirnoteUi.dp(this@MainActivity, 28), AirnoteUi.dp(this@MainActivity, 24), AirnoteUi.dp(this@MainActivity, 56))
+            setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
         }
 
-        root.addView(TextView(this).apply {
-            text = "AIRNOTE"
-            textSize = 32f
-            gravity = Gravity.CENTER_HORIZONTAL
-        })
-        root.addView(TextView(this).apply {
-            text = "Offline USDC on Solana"
-            textSize = 16f
-            gravity = Gravity.CENTER_HORIZONTAL
-        })
-        root.addView(TextView(this).apply {
-            text = "Prepare value while online. Exchange with two scans offline. Settle when connectivity returns."
-            textSize = 14f
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, 6, 0, 28)
-        })
+        root.addView(AirnoteUi.title(this, "AIRNOTE", 30f))
+        root.addView(AirnoteUi.title(this, "Money that moves with you.", 20f), AirnoteUi.marginParams(this, top = 4))
+        root.addView(AirnoteUi.body(this, "Online or offline. Prepare online, pay with two scans offline, settle on Solana.", 13f), AirnoteUi.marginParams(this, top = 4, bottom = 22))
 
-        root.addView(TextView(this).apply {
-            text = "PAY OFFLINE"
-            textSize = 13f
-        })
-        root.addView(Button(this).apply {
-            text = "SEND AIRNOTE"
+        val quickActions = AirnoteUi.card(this, 14)
+        quickActions.addView(AirnoteUi.sectionLabel(this, "Pay offline"))
+        val quickRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            weightSum = 3f
+        }
+        val sendQuick = AirnoteUi.secondaryButton(this, "Send").apply {
             setOnClickListener { startActivity(Intent(this@MainActivity, Gate04SenderActivity::class.java)) }
-        })
-        root.addView(Button(this).apply {
-            text = "RECEIVE AIRNOTE"
+        }
+        val receiveQuick = AirnoteUi.secondaryButton(this, "Receive").apply {
             setOnClickListener { startActivity(Intent(this@MainActivity, Gate04ReceiverActivity::class.java)) }
-        })
-        root.addView(Button(this).apply {
-            text = "ACTIVITY"
+        }
+        val activityQuick = AirnoteUi.secondaryButton(this, "Activity").apply {
             setOnClickListener { startActivity(Intent(this@MainActivity, AirnoteHistoryActivity::class.java)) }
-        })
+        }
+        listOf(sendQuick, receiveQuick, activityQuick).forEach { button ->
+            quickRow.addView(button, LinearLayout.LayoutParams(0, AirnoteUi.dp(this, 54), 1f).apply {
+                marginStart = AirnoteUi.dp(this@MainActivity, 3)
+                marginEnd = AirnoteUi.dp(this@MainActivity, 3)
+            })
+        }
+        quickActions.addView(quickRow, AirnoteUi.marginParams(this, top = 10))
+        quickActions.addView(AirnoteUi.statusPill(this, "●  READY OFFLINE", true), AirnoteUi.marginParams(this, top = 12))
+        quickActions.addView(AirnoteUi.body(this, "Prepared Airnotes can move without internet. Solana settlement happens when connectivity returns.", 13f), AirnoteUi.marginParams(this, top = 8))
+        root.addView(quickActions, AirnoteUi.marginParams(this, bottom = 18))
 
         if (Build.VERSION.SDK_INT >= 33 && !AirnoteNotifications.canNotify(this)) {
             root.addView(Button(this).apply {
@@ -100,37 +97,24 @@ class MainActivity : AppCompatActivity() {
             })
         }
 
-        root.addView(TextView(this).apply {
-            text = "CREATE & FUND AIRNOTE"
-            textSize = 20f
-            setPadding(0, 30, 0, 4)
-        })
-        root.addView(TextView(this).apply {
-            text = "Choose value and lifetime. Your wallet approves one USDC funding transaction; AIRNOTE waits for finality and backing certification automatically."
-            textSize = 14f
-            setPadding(0, 0, 0, 12)
-        })
+        root.addView(AirnoteUi.sectionLabel(this, "Create & Fund"))
+        root.addView(AirnoteUi.title(this, "Prepare your offline reserve", 22f), AirnoteUi.marginParams(this, top = 4))
+        root.addView(AirnoteUi.body(this, "Choose value and lifetime. Your wallet approves one USDC funding transaction; AIRNOTE handles finality and backing certification.", 14f), AirnoteUi.marginParams(this, top = 6, bottom = 14))
 
-        root.addView(TextView(this).apply {
-            text = "SKR RESERVE+"
-            textSize = 16f
-            setPadding(0, 8, 0, 2)
-        })
-        skrStatusView = TextView(this).apply {
-            text = "Standard: up to 5 USDC / 6h. Verify a wallet holding liquid SKR to unlock 10 USDC / 24h."
-            textSize = 13f
-            setPadding(0, 0, 0, 8)
+        val skrCard = AirnoteUi.card(this, 16).apply {
+            background = AirnoteUi.rounded(this@MainActivity, "#FFF9EB", 20, "#F2E3B8")
         }
-        root.addView(skrStatusView)
-        root.addView(Button(this).apply {
-            text = "VERIFY SKR ACCESS"
+        skrCard.addView(AirnoteUi.sectionLabel(this, "SKR Reserve+"))
+        skrStatusView = AirnoteUi.body(this, "Standard · 5 USDC / 6h\nVerify liquid SKR to unlock Reserve+ · 10 USDC / 24h.", 13f)
+        skrCard.addView(skrStatusView, AirnoteUi.marginParams(this, top = 6, bottom = 8))
+        skrCard.addView(AirnoteUi.secondaryButton(this, "Verify SKR access").apply {
             setOnClickListener { verifySkrAccess(this) }
         })
+        root.addView(skrCard, AirnoteUi.marginParams(this, bottom = 14))
 
         val amountRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         listOf(1, 5, 10).forEach { amount ->
-            val amountButton = Button(this).apply {
-                text = if (amount == 10) "$10 • SKR+" else "$" + amount
+            val amountButton = AirnoteUi.secondaryButton(this, if (amount == 10) "10 USDC · SKR+" else "$amount USDC").apply {
                 setOnClickListener {
                     selectedAmountUsdc = amount
                     refreshCreatePreview()
@@ -144,7 +128,11 @@ class MainActivity : AppCompatActivity() {
         val lifetimeRowOne = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val lifetimeRowTwo = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         SenderLifetimePolicy.presets.forEachIndexed { index, preset ->
-            val button = Button(this).apply {
+            val button = AirnoteUi.secondaryButton(this, if (preset.seconds == SkrAccessPolicy.RESERVE_PLUS_MAX_LIFETIME_SECONDS) {
+                    "24 hours · SKR+"
+                } else {
+                    preset.label
+                }).apply {
                 text = if (preset.seconds == SkrAccessPolicy.RESERVE_PLUS_MAX_LIFETIME_SECONDS) {
                     "24 hours • SKR+"
                 } else {
@@ -193,20 +181,18 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        createPreviewView = TextView(this).apply {
-            textSize = 15f
-            setPadding(0, 12, 0, 12)
+        createPreviewView = AirnoteUi.body(this, "", 14f).apply {
+            setPadding(AirnoteUi.dp(this@MainActivity, 14), AirnoteUi.dp(this@MainActivity, 14), AirnoteUi.dp(this@MainActivity, 14), AirnoteUi.dp(this@MainActivity, 14))
+            background = AirnoteUi.rounded(this@MainActivity, AirnoteUi.SKY_100, 16)
         }
         root.addView(createPreviewView)
 
-        val createAndFund = Button(this).apply {
-            text = "CREATE & FUND AIRNOTE"
+        val createAndFund = AirnoteUi.primaryButton(this, "Create & Fund Airnote").apply {
             setOnClickListener { createAndFund(this) }
         }
         root.addView(createAndFund)
 
-        val continueButton = Button(this).apply {
-            text = "CONTINUE LATEST AIRNOTE"
+        val continueButton = AirnoteUi.secondaryButton(this, "Continue latest Airnote").apply {
             setOnClickListener {
                 val note = localAirnoteStore.latestIncomplete()
                 if (note == null) {
@@ -218,26 +204,20 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(continueButton)
 
-        root.addView(TextView(this).apply {
-            text = "LOCAL AIRNOTES"
-            textSize = 20f
-            setPadding(0, 30, 0, 4)
-        })
-        activityView = TextView(this).apply {
-            textSize = 14f
-            setPadding(0, 8, 0, 12)
+        root.addView(AirnoteUi.sectionLabel(this, "Local Airnotes"), AirnoteUi.marginParams(this, top = 28))
+        activityView = AirnoteUi.body(this, "", 14f).apply {
+            setPadding(AirnoteUi.dp(this@MainActivity, 16), AirnoteUi.dp(this@MainActivity, 16), AirnoteUi.dp(this@MainActivity, 16), AirnoteUi.dp(this@MainActivity, 16))
+            background = AirnoteUi.rounded(this@MainActivity, AirnoteUi.CLOUD, 20, AirnoteUi.MIST)
         }
         root.addView(activityView)
 
-        root.addView(Button(this).apply {
-            text = "REFRESH"
+        root.addView(AirnoteUi.secondaryButton(this, "Refresh").apply {
             setOnClickListener { refreshLocalActivity() }
-        })
+        }, AirnoteUi.marginParams(this, top = 10))
 
-        root.addView(Button(this).apply {
-            text = "DEVELOPER TOOLS"
+        root.addView(AirnoteUi.secondaryButton(this, "Developer tools").apply {
             setOnClickListener { startActivity(Intent(this@MainActivity, DeveloperToolsActivity::class.java)) }
-        })
+        }, AirnoteUi.marginParams(this, top = 8))
 
         setContentView(ScrollView(this).apply { addView(root) })
         refreshSkrAccessControls()
