@@ -6,6 +6,8 @@ import android.view.Gravity
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -166,15 +168,27 @@ class AirnoteHistoryActivity : AppCompatActivity() {
             })
             nav.addView(item, LinearLayout.LayoutParams(0, AirnoteUi.dp(this, 46), 1f))
         }
+        ViewCompat.setOnApplyWindowInsetsListener(nav) { view, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.setPadding(
+                AirnoteUi.dp(this@AirnoteHistoryActivity, 12),
+                AirnoteUi.dp(this@AirnoteHistoryActivity, 5),
+                AirnoteUi.dp(this@AirnoteHistoryActivity, 12),
+                AirnoteUi.dp(this@AirnoteHistoryActivity, 8) + systemBars.bottom
+            )
+            insets
+        }
+
         shell.addView(
             nav,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                AirnoteUi.dp(this, 64)
+                LinearLayout.LayoutParams.WRAP_CONTENT
             )
         )
 
         setContentView(shell)
+        ViewCompat.requestApplyInsets(nav)
     }
 
     private fun displayTime(epochSeconds: Long): String =
