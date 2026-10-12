@@ -372,7 +372,7 @@ class MainActivity : AppCompatActivity() {
                         SkrAccessVerifier().check(account.publicKey)
                     }
                     is TransactionResult.NoWalletFound -> error(walletResult.message)
-                    is TransactionResult.Failure -> throw walletResult.e ?: Exception(walletResult.message)
+                    is TransactionResult.Failure -> error(walletResult.message)
                 }
             }
 
