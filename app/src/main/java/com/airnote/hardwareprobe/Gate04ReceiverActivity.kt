@@ -223,6 +223,15 @@ class Gate04ReceiverActivity : AppCompatActivity() {
         val binding = walletBindingStore.current()
         val handoffActive = currentRequest != null && acceptedPaymentId == null
         val paymentAccepted = acceptedPaymentId != null
+        val controls = ReceiveControlPolicy.derive(
+            hasWalletBinding = binding != null,
+            hasActiveRequest = handoffActive,
+            hasAcceptedPayment = paymentAccepted
+        )
+
+        selectWalletButton.isEnabled = controls.selectWalletEnabled
+        requestButton.isEnabled = controls.requestEnabled
+        requestButton.text = controls.requestLabel
 
         if (binding == null) {
             walletStatus.text = buildString {
@@ -231,9 +240,6 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                 append("AIRNOTE stores only the selected public key.")
             }
             selectWalletButton.text = "SELECT RECEIVE WALLET"
-            selectWalletButton.isEnabled = !handoffActive
-            requestButton.text = "SHOW REQUEST QR — 1 OF 2"
-            requestButton.isEnabled = false
             if (currentRequest == null && !paymentAccepted) {
                 status.text = "Select the wallet that should receive USDC after settlement."
             }
@@ -245,9 +251,6 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                 append("The recipient public key is cached locally. Scan 1 can be created without reconnecting the wallet.")
             }
             selectWalletButton.text = "CHANGE RECEIVE WALLET"
-            selectWalletButton.isEnabled = !handoffActive
-            requestButton.text = if (paymentAccepted) "RECEIVE ANOTHER AIRNOTE" else "SHOW REQUEST QR — 1 OF 2"
-            requestButton.isEnabled = !handoffActive
             if (!handoffActive && !paymentAccepted) {
                 status.text = "Wallet binding ready. You can disconnect now and start the two-scan handoff."
             }
