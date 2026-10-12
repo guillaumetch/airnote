@@ -124,7 +124,7 @@ class AirnotePaymentDetailActivity : AppCompatActivity() {
             })
             root.addView(AirnoteUi.body(this, "", 13f).apply {
                 text = if (payment.settlementSignature == null) {
-                    "Your Solana wallet will open to authorize the recipient-bound redemption. AIRNOTE never receives your wallet private key."
+                    "Your Solana wallet will open for AIRNOTE Devnet settlement. If your wallet is showing Mainnet, switch it to Devnet before approving. AIRNOTE never receives your wallet private key."
                 } else {
                     "A transaction was already submitted. AIRNOTE will reconcile that transaction before any new submission."
                 }
