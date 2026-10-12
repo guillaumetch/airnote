@@ -6,8 +6,6 @@ import android.view.Gravity
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -39,8 +37,20 @@ class AirnoteHistoryActivity : AppCompatActivity() {
             setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
         }
 
-        root.addView(AirnoteUi.sectionLabel(this, "AIRNOTE"))
-        root.addView(AirnoteUi.title(this, "Activity", 26f), AirnoteUi.marginParams(this, top = 2))
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        top.addView(android.widget.TextView(this).apply {
+            text = "‹"
+            textSize = 28f
+            gravity = Gravity.CENTER
+            setTextColor(AirnoteUi.color(AirnoteUi.AIR_DEEP))
+            setPadding(0, 0, AirnoteUi.dp(this@AirnoteHistoryActivity, 8), 0)
+            setOnClickListener { finish() }
+        })
+        top.addView(AirnoteUi.title(this, "Activity", 26f))
+        root.addView(top)
         root.addView(
             AirnoteUi.body(this, "Offline handoffs and Solana settlement history.", 13f),
             AirnoteUi.marginParams(this, top = 3, bottom = 16)
@@ -75,8 +85,18 @@ class AirnoteHistoryActivity : AppCompatActivity() {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
                 }
-                val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
                 val direction = if (payment.direction == PaymentDirection.RECEIVED) "Received" else "Sent"
+                row.addView(
+                    AirnoteUi.iconBubble(
+                        this,
+                        if (payment.direction == PaymentDirection.RECEIVED) "●" else "➤",
+                        38
+                    )
+                )
+                val left = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(AirnoteUi.dp(this@AirnoteHistoryActivity, 10), 0, 0, 0)
+                }
                 left.addView(AirnoteUi.title(this, direction, 15f))
                 left.addView(
                     AirnoteUi.body(
@@ -109,86 +129,13 @@ class AirnoteHistoryActivity : AppCompatActivity() {
             addView(root)
         }
 
-        val shell = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
-        }
-        shell.addView(
-            scroll,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                0,
-                1f
+        setContentView(
+            AirnoteBottomNav.attach(
+                this,
+                scroll,
+                AirnoteBottomNav.Tab.ACTIVITY
             )
         )
-
-        val nav = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            setPadding(
-                AirnoteUi.dp(this@AirnoteHistoryActivity, 12),
-                AirnoteUi.dp(this@AirnoteHistoryActivity, 5),
-                AirnoteUi.dp(this@AirnoteHistoryActivity, 12),
-                AirnoteUi.dp(this@AirnoteHistoryActivity, 8)
-            )
-            gravity = Gravity.CENTER_VERTICAL
-            elevation = AirnoteUi.dp(this@AirnoteHistoryActivity, 6).toFloat()
-            background = AirnoteUi.rounded(this@AirnoteHistoryActivity, "#FCFEFF", 0, "#DDE7F0")
-        }
-        val navItems = listOf(
-            Triple("⌂", "Home", MainActivity::class.java),
-            Triple("➤", "Send", Gate04SenderActivity::class.java),
-            Triple("⌗", "Receive", Gate04ReceiverActivity::class.java),
-            Triple("▤", "Activity", AirnoteHistoryActivity::class.java)
-        )
-        navItems.forEachIndexed { index, (glyph, label, target) ->
-            val item = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-                isClickable = true
-                setOnClickListener {
-                    if (target == MainActivity::class.java) {
-                        startActivity(Intent(this@AirnoteHistoryActivity, target).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
-                    } else if (target != AirnoteHistoryActivity::class.java) {
-                        startActivity(Intent(this@AirnoteHistoryActivity, target))
-                    }
-                }
-            }
-            item.addView(android.widget.TextView(this).apply {
-                text = glyph
-                textSize = 18f
-                gravity = Gravity.CENTER
-                setTextColor(AirnoteUi.color(if (index == 3) AirnoteUi.AIR else AirnoteUi.SLATE))
-            })
-            item.addView(android.widget.TextView(this).apply {
-                text = label
-                textSize = 10f
-                gravity = Gravity.CENTER
-                setTextColor(AirnoteUi.color(if (index == 3) AirnoteUi.AIR else AirnoteUi.SLATE))
-            })
-            nav.addView(item, LinearLayout.LayoutParams(0, AirnoteUi.dp(this, 46), 1f))
-        }
-        ViewCompat.setOnApplyWindowInsetsListener(nav) { view, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            view.setPadding(
-                AirnoteUi.dp(this@AirnoteHistoryActivity, 12),
-                AirnoteUi.dp(this@AirnoteHistoryActivity, 5),
-                AirnoteUi.dp(this@AirnoteHistoryActivity, 12),
-                AirnoteUi.dp(this@AirnoteHistoryActivity, 8) + systemBars.bottom
-            )
-            insets
-        }
-
-        shell.addView(
-            nav,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-
-        setContentView(shell)
-        ViewCompat.requestApplyInsets(nav)
     }
 
     private fun displayTime(epochSeconds: Long): String =
