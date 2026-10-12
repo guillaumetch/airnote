@@ -7,6 +7,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.math.BigInteger
 
 /**
  * Deliberately small Solana JSON-RPC client.
@@ -26,6 +27,11 @@ class AirnoteSolanaRpc(
 
     data class FinalizedSignature(
         val slot: Long
+    )
+
+    data class OwnerTokenBalance(
+        val amountBaseUnits: BigInteger,
+        val decimals: Int
     )
 
     enum class SignatureState {
@@ -79,6 +85,39 @@ class AirnoteSolanaRpc(
         } catch (_: RpcException) {
             null
         }
+    }
+
+    suspend fun tokenBalanceByOwnerAndMint(owner: String, mint: String): OwnerTokenBalance {
+        val result = call(
+            "getTokenAccountsByOwner",
+            JSONArray()
+                .put(owner)
+                .put(JSONObject().put("mint", mint))
+                .put(JSONObject().put("commitment", "confirmed").put("encoding", "jsonParsed"))
+        ) as JSONObject
+
+        val values = result.getJSONArray("value")
+        var total = BigInteger.ZERO
+        var decimals: Int? = null
+        for (index in 0 until values.length()) {
+            val tokenAmount = values.getJSONObject(index)
+                .getJSONObject("account")
+                .getJSONObject("data")
+                .getJSONObject("parsed")
+                .getJSONObject("info")
+                .getJSONObject("tokenAmount")
+            val accountDecimals = tokenAmount.getInt("decimals")
+            require(decimals == null || decimals == accountDecimals) {
+                "token accounts returned inconsistent decimals"
+            }
+            decimals = accountDecimals
+            total = total.add(BigInteger(tokenAmount.getString("amount")))
+        }
+
+        return OwnerTokenBalance(
+            amountBaseUnits = total,
+            decimals = decimals ?: 0
+        )
     }
 
     suspend fun finalizedChainTimeSeconds(): Long {
@@ -182,6 +221,7 @@ class AirnoteSolanaRpc(
 
     companion object {
         const val DEFAULT_DEVNET_RPC = "https://api.devnet.solana.com"
+        const val DEFAULT_MAINNET_RPC = "https://api.mainnet-beta.solana.com"
         private const val CONNECT_TIMEOUT_MS = 15_000
         private const val READ_TIMEOUT_MS = 25_000
         private const val FINALIZATION_TIMEOUT_MS = 120_000L
