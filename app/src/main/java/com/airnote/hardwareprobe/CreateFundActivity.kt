@@ -64,7 +64,11 @@ class CreateFundActivity : AppCompatActivity() {
         root.addView(top)
         root.addView(
             AirnoteUi.body(this, "Add USDC to your Airnote to pay offline, anytime.", 13f),
-            AirnoteUi.marginParams(this, top = 4, bottom = 14)
+            AirnoteUi.marginParams(this, top = 4, bottom = 8)
+        )
+        root.addView(
+            AirnoteUi.networkBadge(this),
+            AirnoteUi.marginParams(this, bottom = 14)
         )
 
         val createCard = AirnoteUi.glassCard(this, 16)
