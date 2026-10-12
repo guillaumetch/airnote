@@ -66,6 +66,21 @@ class AirnoteSolanaRpc(
         return result.getJSONObject("value").getString("owner")
     }
 
+    suspend fun tokenBalanceBaseUnits(address: String): Long? {
+        return try {
+            val result = call(
+                "getTokenAccountBalance",
+                JSONArray()
+                    .put(address)
+                    .put(JSONObject().put("commitment", "confirmed"))
+            ) as JSONObject
+            val amount = result.getJSONObject("value").getString("amount")
+            amount.toLong()
+        } catch (_: RpcException) {
+            null
+        }
+    }
+
     suspend fun finalizedChainTimeSeconds(): Long {
         val slot = (call(
             "getSlot",

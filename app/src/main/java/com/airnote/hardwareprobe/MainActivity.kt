@@ -1,9 +1,6 @@
 package com.airnote.hardwareprobe
 
 import android.Manifest
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -17,13 +14,18 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.airnote.protocol.SenderLifetimePolicy
+import com.solana.mobilewalletadapter.clientlib.ActivityResultSender
+import kotlinx.coroutines.launch
 import java.io.File
 import java.time.Instant
 
 class MainActivity : AppCompatActivity() {
     private lateinit var createPreviewView: TextView
     private lateinit var activityView: TextView
+    private lateinit var localAirnoteStore: LocalAirnoteStore
+    private lateinit var walletActivityResultSender: ActivityResultSender
     private var selectedAmountUsdc = 1
     private var selectedLifetimeSeconds = SenderLifetimePolicy.DEFAULT_SECONDS
 
@@ -39,6 +41,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        walletActivityResultSender = ActivityResultSender(this)
+        localAirnoteStore = LocalAirnoteStore(this)
+        localAirnoteStore.importLegacyMintRequests(getExternalFilesDir(null)?.listFiles().orEmpty())
         title = "AIRNOTE"
 
         val root = LinearLayout(this).apply {
@@ -57,7 +62,7 @@ class MainActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_HORIZONTAL
         })
         root.addView(TextView(this).apply {
-            text = "Two scans to exchange offline. Settle when you're back online."
+            text = "Prepare value while online. Exchange with two scans offline. Settle when connectivity returns."
             textSize = 14f
             gravity = Gravity.CENTER_HORIZONTAL
             setPadding(0, 6, 0, 28)
@@ -88,19 +93,14 @@ class MainActivity : AppCompatActivity() {
                 }
             })
         }
-        root.addView(TextView(this).apply {
-            text = "When connectivity returns, AIRNOTE can alert you when an offline payment is ready to settle and automatically reconcile transactions that were already submitted. Wallet approval is never performed in the background."
-            textSize = 13f
-            setPadding(0, 4, 0, 12)
-        })
 
         root.addView(TextView(this).apply {
-            text = "CREATE AIRNOTE"
+            text = "CREATE & FUND AIRNOTE"
             textSize = 20f
             setPadding(0, 30, 0, 4)
         })
         root.addView(TextView(this).apply {
-            text = "Choose the value and how long this Airnote can settle after it is funded."
+            text = "Choose value and lifetime. Your wallet approves one USDC funding transaction; AIRNOTE waits for finality and backing certification automatically."
             textSize = 14f
             setPadding(0, 0, 0, 12)
         })
@@ -108,7 +108,7 @@ class MainActivity : AppCompatActivity() {
         val amountRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         listOf(1, 5, 10).forEach { amount ->
             amountRow.addView(Button(this).apply {
-                text = "$${amount}"
+                text = "$" + amount
                 setOnClickListener {
                     selectedAmountUsdc = amount
                     refreshCreatePreview()
@@ -160,80 +160,27 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(createPreviewView)
 
-        val createAirnote = Button(this).apply {
-            text = "CREATE AIRNOTE"
+        val createAndFund = Button(this).apply {
+            text = "CREATE & FUND AIRNOTE"
+            setOnClickListener { createAndFund(this) }
+        }
+        root.addView(createAndFund)
+
+        val continueButton = Button(this).apply {
+            text = "CONTINUE LATEST AIRNOTE"
             setOnClickListener {
-                isEnabled = false
-                text = "CREATING STRONGBOX KEY…"
-                val amount = selectedAmountUsdc
-                val lifetimeSeconds = selectedLifetimeSeconds
-                Thread {
-                    val result = runCatching {
-                        val material = NoteOwnerKeyManager(this@MainActivity).create()
-                        buildSenderMintRequest(material, amount, lifetimeSeconds)
-                    }
-                    runOnUiThread {
-                        result.onSuccess { request ->
-                            val file = persistMintRequest(request)
-                            Toast.makeText(
-                                this@MainActivity,
-                                "Airnote prepared. Funding request saved locally.",
-                                Toast.LENGTH_LONG
-                            ).show()
-                            refreshLocalActivity()
-                            val shortId = Regex("NOTE_ID_HEX=([0-9a-f]{64})")
-                                .find(request)?.groupValues?.get(1)?.take(12) ?: "created"
-                            activityView.text = "READY TO FUND\n$amount USDC • ${SenderLifetimePolicy.lifetime(lifetimeSeconds).label}\nNote $shortId…\n${file.name}"
-                        }.onFailure { t ->
-                            Toast.makeText(
-                                this@MainActivity,
-                                "Create failed: ${t.message ?: t::class.java.simpleName}",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                        text = "CREATE AIRNOTE"
-                        isEnabled = true
-                    }
-                }.start()
+                val note = localAirnoteStore.latestIncomplete()
+                if (note == null) {
+                    Toast.makeText(this@MainActivity, "No Airnote is waiting for funding or certification.", Toast.LENGTH_LONG).show()
+                } else {
+                    fundOrCertify(note.noteIdHex, this)
+                }
             }
         }
-        root.addView(createAirnote)
-
-        root.addView(Button(this).apply {
-            text = "COPY LATEST MINT REQUEST"
-            setOnClickListener {
-                val file = latestMintRequestFile()
-                if (file == null) {
-                    Toast.makeText(this@MainActivity, "Create an Airnote first.", Toast.LENGTH_LONG).show()
-                    return@setOnClickListener
-                }
-                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(
-                    ClipData.newPlainText("AIRNOTE mint request", file.readText())
-                )
-                Toast.makeText(this@MainActivity, "Mint request copied.", Toast.LENGTH_SHORT).show()
-            }
-        })
-
-        root.addView(Button(this).apply {
-            text = "SHARE LATEST MINT REQUEST"
-            setOnClickListener {
-                val file = latestMintRequestFile()
-                if (file == null) {
-                    Toast.makeText(this@MainActivity, "Create an Airnote first.", Toast.LENGTH_LONG).show()
-                    return@setOnClickListener
-                }
-                val share = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_SUBJECT, file.name)
-                    putExtra(Intent.EXTRA_TEXT, file.readText())
-                }
-                startActivity(Intent.createChooser(share, "Share AIRNOTE mint request"))
-            }
-        })
+        root.addView(continueButton)
 
         root.addView(TextView(this).apply {
-            text = "LOCAL STATUS"
+            text = "LOCAL AIRNOTES"
             textSize = 20f
             setPadding(0, 30, 0, 4)
         })
@@ -244,7 +191,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(activityView)
 
         root.addView(Button(this).apply {
-            text = "REFRESH LOCAL STATUS"
+            text = "REFRESH"
             setOnClickListener { refreshLocalActivity() }
         })
 
@@ -265,36 +212,142 @@ class MainActivity : AppCompatActivity() {
         AirnoteReconciliationScheduler.enqueue(this)
     }
 
+    private fun createAndFund(button: Button) {
+        button.isEnabled = false
+        button.text = "CREATING STRONGBOX KEY…"
+        val amount = selectedAmountUsdc
+        val lifetimeSeconds = selectedLifetimeSeconds
+
+        Thread {
+            val result = runCatching {
+                val material = NoteOwnerKeyManager(this@MainActivity).create()
+                val request = buildSenderMintRequest(material, amount, lifetimeSeconds)
+                persistMintRequest(request)
+                localAirnoteStore.create(material, amount, lifetimeSeconds)
+            }
+            runOnUiThread {
+                result.onSuccess { note ->
+                    refreshLocalActivity()
+                    button.text = "OPENING WALLET…"
+                    fundOrCertify(note.noteIdHex, button)
+                }.onFailure { error ->
+                    button.text = "CREATE & FUND AIRNOTE"
+                    button.isEnabled = true
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Create failed: " + (error.message ?: error::class.java.simpleName),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun fundOrCertify(noteIdHex: String, button: Button) {
+        val idleLabel = if (button.text == "CONTINUE LATEST AIRNOTE") {
+            "CONTINUE LATEST AIRNOTE"
+        } else {
+            "CREATE & FUND AIRNOTE"
+        }
+        button.isEnabled = false
+        val before = localAirnoteStore.get(noteIdHex)
+        button.text = when (before?.state) {
+            LocalAirnoteState.FUNDED_FINALIZED -> "CERTIFYING BACKING…"
+            LocalAirnoteState.FUNDING -> "CHECKING FUNDING…"
+            else -> "OPENING WALLET…"
+        }
+
+        lifecycleScope.launch {
+            val result = runCatching {
+                AirnoteFundingCoordinator(localAirnoteStore)
+                    .createReadyOffline(noteIdHex, walletActivityResultSender)
+            }
+
+            result.onSuccess { ready ->
+                Toast.makeText(
+                    this@MainActivity,
+                    ready.note.amountUsdc.toString() + " USDC AIRNOTE READY OFFLINE",
+                    Toast.LENGTH_LONG
+                ).show()
+                activityView.text = buildString {
+                    appendLine("READY OFFLINE  ✓")
+                    appendLine(ready.note.amountUsdc.toString() + " USDC")
+                    appendLine("Note " + ready.note.noteIdHex.take(12) + "…")
+                    appendLine("Funding finalized at slot " + ready.finalizedSlot)
+                    append("Open SEND AIRNOTE — no certificate file import is needed.")
+                }
+            }.onFailure { error ->
+                val current = localAirnoteStore.get(noteIdHex)
+                val message = when (error) {
+                    is AirnoteFundingCoordinator.CertificationPendingException ->
+                        "Funding is FINALIZED. Certification is pending; retry will not fund again."
+                    else -> error.message ?: error::class.java.simpleName
+                }
+                Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+                if (current != null) {
+                    activityView.text = buildString {
+                        appendLine(current.amountUsdc.toString() + " USDC • " + current.state)
+                        appendLine("Note " + current.noteIdHex.take(12) + "…")
+                        current.fundingSignature?.let { appendLine("Funding tx: " + it) }
+                        current.lastError?.let { append("Last status: " + it) }
+                    }
+                }
+            }
+
+            button.text = idleLabel
+            button.isEnabled = true
+            refreshLocalActivity()
+        }
+    }
+
     private fun refreshCreatePreview() {
         if (!::createPreviewView.isInitialized) return
         val lifetime = SenderLifetimePolicy.lifetime(selectedLifetimeSeconds)
         createPreviewView.text = buildString {
-            appendLine("$selectedAmountUsdc USDC • ${lifetime.label}")
-            appendLine("Offline exposure: ${lifetime.exposureLabel}")
-            appendLine("Estimated expiry: ${Instant.now().plusSeconds(lifetime.seconds)}")
-            append("Receiver request TTL is separate and only protects handoff freshness.")
+            appendLine(selectedAmountUsdc.toString() + " USDC • " + lifetime.label)
+            appendLine("Offline exposure: " + lifetime.exposureLabel)
+            appendLine("Estimated expiry: " + Instant.now().plusSeconds(lifetime.seconds))
+            append("Creation/funding requires connectivity. The two-scan handoff does not.")
         }
     }
 
     private fun refreshLocalActivity() {
         if (!::activityView.isInitialized) return
-        val store = AirnotePaymentStore(this)
-        store.expireDue()
-        val payments = store.all()
-        val pending = payments.count { it.status in setOf(PaymentStatus.ACCEPTED_OFFLINE, PaymentStatus.PENDING, PaymentStatus.SETTLING, PaymentStatus.FAILED_RETRYABLE) }
-        val submitted = payments.count { it.settlementSignature != null && it.status != PaymentStatus.SETTLED }
+
+        val notes = localAirnoteStore.all()
+        val prepared = notes.count { it.state == LocalAirnoteState.PREPARED }
+        val funding = notes.count { it.state == LocalAirnoteState.FUNDING }
+        val certificationPending = notes.count { it.state == LocalAirnoteState.FUNDED_FINALIZED }
+        val ready = notes.count { it.state == LocalAirnoteState.READY_OFFLINE }
+        val handedOff = notes.count { it.state == LocalAirnoteState.HANDOFF_AUTHORIZED }
+
+        val paymentStore = AirnotePaymentStore(this)
+        paymentStore.expireDue()
+        val payments = paymentStore.all()
+        val pendingSettlement = payments.count {
+            it.status in setOf(
+                PaymentStatus.ACCEPTED_OFFLINE,
+                PaymentStatus.PENDING,
+                PaymentStatus.SETTLING,
+                PaymentStatus.FAILED_RETRYABLE
+            )
+        }
         val settled = payments.count { it.status == PaymentStatus.SETTLED }
-        val mintRequests = getExternalFilesDir(null)
-            ?.listFiles()
-            .orEmpty()
-            .count { it.name.startsWith("airnote-mint-request-") }
+
         activityView.text = buildString {
-            appendLine("Pending settlement: $pending")
-            appendLine("Submitted / reconciling: $submitted")
-            appendLine("Settled: $settled")
-            appendLine("Prepared sender notes: $mintRequests")
+            appendLine("Ready offline: " + ready)
+            appendLine("Prepared: " + prepared)
+            appendLine("Funding / reconciling: " + funding)
+            appendLine("Certification pending: " + certificationPending)
+            appendLine("Handoff authorized: " + handedOff)
             appendLine()
-            append("Offline acceptance is local. Submitted transactions reconcile against Solana when connectivity is available.")
+            appendLine("Received waiting to settle: " + pendingSettlement)
+            appendLine("Settled: " + settled)
+            notes.firstOrNull()?.let {
+                appendLine()
+                appendLine("Latest: " + it.amountUsdc + " USDC • " + it.state)
+                append("Note " + it.noteIdHex.take(12) + "…")
+            }
         }
     }
 
@@ -309,13 +362,13 @@ class MainActivity : AppCompatActivity() {
             appendLine("AIRNOTE — SENDER MINT REQUEST")
             appendLine()
             appendLine("VERSION=1")
-            appendLine("CREATED_AT=$createdAt")
-            appendLine("AMOUNT_USDC=$amountUsdc")
-            appendLine("LIFETIME_SECONDS=${lifetime.seconds}")
-            appendLine("LIFETIME_LABEL=${lifetime.label}")
-            appendLine("OFFLINE_EXPOSURE=${lifetime.exposureLabel}")
-            appendLine("ESTIMATED_EXPIRES_AT=${createdAt.plusSeconds(lifetime.seconds)}")
-            appendLine("MINT_LIFETIME_ARGUMENT=--lifetime-seconds ${lifetime.seconds}")
+            appendLine("CREATED_AT=" + createdAt)
+            appendLine("AMOUNT_USDC=" + amountUsdc)
+            appendLine("LIFETIME_SECONDS=" + lifetime.seconds)
+            appendLine("LIFETIME_LABEL=" + lifetime.label)
+            appendLine("OFFLINE_EXPOSURE=" + lifetime.exposureLabel)
+            appendLine("ESTIMATED_EXPIRES_AT=" + createdAt.plusSeconds(lifetime.seconds))
+            appendLine("MINT_LIFETIME_ARGUMENT=--lifetime-seconds " + lifetime.seconds)
             appendLine()
             append(material.report())
             appendLine()
@@ -327,15 +380,8 @@ class MainActivity : AppCompatActivity() {
     private fun persistMintRequest(request: String): File {
         val noteId = Regex("NOTE_ID_HEX=([0-9a-f]{64})")
             .find(request)?.groupValues?.get(1) ?: "unknown"
-        return File(getExternalFilesDir(null), "airnote-mint-request-$noteId.txt").apply {
+        return File(getExternalFilesDir(null), "airnote-mint-request-" + noteId + ".txt").apply {
             writeText(request)
         }
     }
-
-    private fun latestMintRequestFile(): File? =
-        getExternalFilesDir(null)
-            ?.listFiles()
-            .orEmpty()
-            .filter { it.isFile && it.name.startsWith("airnote-mint-request-") && it.name.endsWith(".txt") }
-            .maxByOrNull { it.lastModified() }
 }
