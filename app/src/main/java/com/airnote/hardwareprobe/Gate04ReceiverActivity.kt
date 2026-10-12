@@ -256,6 +256,8 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                 requestCreatedAtUnixSeconds = created,
                 requestExpiresAtUnixSeconds = created + Gate04Verifier.REQUEST_MAX_LIFETIME_SECONDS
             )
+            val encoded = Gate04Wire.encodeRequestQr(request)
+            handoffStore.save(sessionId, encoded)
             currentRequest = request
             handoffSessionId = sessionId
             acceptedPayload = null
@@ -264,7 +266,6 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             openPaymentButton.isEnabled = false
             selectWalletButton.isEnabled = false
             requestButton.isEnabled = false
-            val encoded = Gate04Wire.encodeRequestQr(request)
             qr.setImageBitmap(QrSupport.render(encoded))
             scanTransferButton.isEnabled = true
             runCatching {
@@ -286,6 +287,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                 append("No wallet session or internet connection is required for either scan.")
             }
         }.onFailure { error ->
+            handoffStore.clear()
             currentRequest = null
             handoffSessionId = null
             scanTransferButton.isEnabled = false
@@ -293,6 +295,44 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             requestButton.isEnabled = walletBindingStore.current() != null
             phase.text = "SCAN 1 OF 2  •  CREATE YOUR REQUEST"
             status.text = "REQUEST FAILED\n${error.message ?: error::class.java.simpleName}"
+        }
+    }
+
+    private fun restoreActiveRequest() {
+        val persisted = handoffStore.current(now()) ?: return
+        val binding = walletBindingStore.current() ?: run {
+            handoffStore.clear()
+            return
+        }
+
+        val request = runCatching { Gate04Wire.decodeRequestQr(persisted.requestQr) }.getOrElse {
+            handoffStore.clear()
+            return
+        }
+        val requestRecipient = Base58.encode(request.recipientSolanaWallet)
+        if (requestRecipient != binding.publicKeyBase58) {
+            handoffStore.clear()
+            return
+        }
+
+        currentRequest = request
+        handoffSessionId = persisted.sessionId
+        acceptedPayload = null
+        acceptedPaymentId = null
+        copyAcceptedButton.isEnabled = false
+        openPaymentButton.isEnabled = false
+        selectWalletButton.isEnabled = false
+        requestButton.isEnabled = false
+        scanTransferButton.isEnabled = true
+        qr.setImageBitmap(QrSupport.render(persisted.requestQr))
+        phase.text = "SCAN 1 OF 2  •  ACTIVE REQUEST RESTORED"
+        status.text = buildString {
+            appendLine("REQUEST RESTORED  ✓")
+            appendLine()
+            appendLine("This is the exact same receiver request and nonce created earlier.")
+            appendLine("Show this QR to the sender, then return here and scan the signed payment.")
+            appendLine()
+            append("Expires at unix ${request.requestExpiresAtUnixSeconds}.")
         }
     }
 
@@ -336,6 +376,9 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                 )
             }
 
+            handoffStore.clear()
+            currentRequest = null
+            handoffSessionId = null
             acceptedPayload = scanned.trim()
             acceptedPaymentId = commitmentHex
             copyAcceptedButton.isEnabled = true
