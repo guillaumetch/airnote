@@ -54,8 +54,27 @@ object AirnoteUi {
         LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(context, paddingDp), dp(context, paddingDp), dp(context, paddingDp), dp(context, paddingDp))
-            background = rounded(context, CLOUD, 20, MIST)
-            elevation = dp(context, 2).toFloat()
+            background = rounded(context, "#FCFEFF", 20, "#DDE7F0")
+            elevation = dp(context, 1).toFloat()
+        }
+
+    fun glassCard(context: Context, paddingDp: Int = 18): LinearLayout =
+        LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(context, paddingDp), dp(context, paddingDp), dp(context, paddingDp), dp(context, paddingDp))
+            background = rounded(context, "#F8FCFF", 22, "#D7E5F1")
+            elevation = 0f
+        }
+
+    fun iconBubble(context: Context, glyph: String, sizeDp: Int = 42): TextView =
+        TextView(context).apply {
+            text = glyph
+            textSize = 20f
+            gravity = android.view.Gravity.CENTER
+            setTextColor(color(AIR))
+            background = rounded(context, "#EAF5FF", 999)
+            minWidth = dp(context, sizeDp)
+            minHeight = dp(context, sizeDp)
         }
 
     fun sectionLabel(context: Context, value: String): TextView =
@@ -85,7 +104,7 @@ object AirnoteUi {
     fun statusPill(context: Context, value: String, success: Boolean = true): TextView =
         TextView(context).apply {
             text = value
-            textSize = 12f
+            textSize = 11.5f
             setTextColor(color(if (success) "#087B50" else AIR_DEEP))
             setTypeface(typeface, Typeface.BOLD)
             setPadding(dp(context, 12), dp(context, 7), dp(context, 12), dp(context, 7))
@@ -99,7 +118,13 @@ object AirnoteUi {
             textSize = 15f
             setTextColor(Color.WHITE)
             setTypeface(typeface, Typeface.BOLD)
-            background = rounded(context, AIR, 16)
+            background = GradientDrawable(
+                GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(color("#2478F3"), color("#3C91FF"))
+            ).apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(context, 18).toFloat()
+            }
             minHeight = dp(context, 54)
             elevation = 0f
             stateListAnimator = null
@@ -111,7 +136,7 @@ object AirnoteUi {
             isAllCaps = false
             textSize = 14f
             setTextColor(color(AIR_DEEP))
-            background = rounded(context, CLOUD, 16, MIST)
+            background = rounded(context, "#FCFEFF", 18, "#DDE7F0")
             minHeight = dp(context, 52)
             elevation = 0f
             stateListAnimator = null
