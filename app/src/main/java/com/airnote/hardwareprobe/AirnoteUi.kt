@@ -40,6 +40,16 @@ object AirnoteUi {
         if (stroke != null) setStroke(dp(context, strokeDp), color(stroke))
     }
 
+    fun heroBackground(context: Context): GradientDrawable =
+        GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            intArrayOf(color("#DDF0FF"), color("#F8FCFF"), color("#FFF4E8"))
+        ).apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(context, 24).toFloat()
+            setStroke(dp(context, 1), color("#D9E7F5"))
+        }
+
     fun card(context: Context, paddingDp: Int = 18): LinearLayout =
         LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -91,6 +101,8 @@ object AirnoteUi {
             setTypeface(typeface, Typeface.BOLD)
             background = rounded(context, AIR, 16)
             minHeight = dp(context, 54)
+            elevation = 0f
+            stateListAnimator = null
         }
 
     fun secondaryButton(context: Context, value: String): Button =
@@ -101,7 +113,25 @@ object AirnoteUi {
             setTextColor(color(AIR_DEEP))
             background = rounded(context, CLOUD, 16, MIST)
             minHeight = dp(context, 52)
+            elevation = 0f
+            stateListAnimator = null
         }
+
+    fun compactButton(context: Context, value: String): Button =
+        secondaryButton(context, value).apply {
+            textSize = 13f
+            minHeight = dp(context, 44)
+        }
+
+    fun selectedChoice(button: Button, context: Context, selected: Boolean) {
+        button.setTextColor(color(if (selected) CLOUD else AIR_DEEP))
+        button.background = rounded(
+            context,
+            if (selected) AIR else CLOUD,
+            16,
+            if (selected) AIR else MIST
+        )
+    }
 
     fun spacer(context: Context, heightDp: Int): View =
         View(context).apply {
