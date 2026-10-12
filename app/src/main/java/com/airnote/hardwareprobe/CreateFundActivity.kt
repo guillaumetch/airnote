@@ -49,6 +49,7 @@ class CreateFundActivity : AppCompatActivity() {
             )
             setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
         }
+        AirnoteUi.applyTopInset(root)
 
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
