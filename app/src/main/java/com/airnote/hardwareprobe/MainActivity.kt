@@ -1,6 +1,7 @@
 package com.airnote.hardwareprobe
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -199,6 +200,48 @@ class MainActivity : AppCompatActivity() {
 
         recentActivityContainer = AirnoteUi.glassCard(this, 12)
         root.addView(recentActivityContainer)
+
+        val devnetCard = AirnoteUi.glassCard(this, 14).apply {
+            background = AirnoteUi.rounded(this@MainActivity, "#F8FCFF", 20, "#D7E5F1")
+        }
+        devnetCard.addView(AirnoteUi.title(this, "Testing on Devnet", 15f))
+        devnetCard.addView(
+            AirnoteUi.body(
+                this,
+                "Need test funds? Get Devnet SOL for fees and Circle Devnet USDC for AIRNOTE funding.",
+                11.5f
+            ),
+            AirnoteUi.marginParams(this, top = 4, bottom = 8)
+        )
+        val faucetRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        faucetRow.addView(
+            AirnoteUi.secondaryButton(this, "Get Devnet SOL").apply {
+                setOnClickListener {
+                    startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse("https://faucet.solana.com/"))
+                    )
+                }
+            },
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginEnd = AirnoteUi.dp(this@MainActivity, 4)
+            }
+        )
+        faucetRow.addView(
+            AirnoteUi.secondaryButton(this, "Get Devnet USDC").apply {
+                setOnClickListener {
+                    startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse("https://faucet.circle.com/"))
+                    )
+                }
+            },
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginStart = AirnoteUi.dp(this@MainActivity, 4)
+            }
+        )
+        devnetCard.addView(faucetRow)
+        root.addView(devnetCard, AirnoteUi.marginParams(this, top = 12))
 
         val scroll = ScrollView(this).apply {
             isFillViewport = true
