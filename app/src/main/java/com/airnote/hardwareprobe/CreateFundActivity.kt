@@ -84,6 +84,8 @@ class CreateFundActivity : AppCompatActivity() {
 
         val amountRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            minimumHeight = AirnoteUi.dp(this@CreateFundActivity, 76)
             weightSum = 3f
         }
         listOf(1, 5, 10).forEach { amount ->
@@ -110,17 +112,27 @@ class CreateFundActivity : AppCompatActivity() {
             if (amount == 10) tenUsdcButton = button
             amountRow.addView(
                 button,
-                LinearLayout.LayoutParams(0, AirnoteUi.dp(this, 64), 1f).apply {
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
                     marginStart = AirnoteUi.dp(this@CreateFundActivity, 3)
                     marginEnd = AirnoteUi.dp(this@CreateFundActivity, 3)
+                    topMargin = AirnoteUi.dp(this@CreateFundActivity, 6)
+                    bottomMargin = AirnoteUi.dp(this@CreateFundActivity, 6)
                 }
             )
         }
-        createCard.addView(amountRow, AirnoteUi.marginParams(this, top = 8))
+        createCard.addView(amountRow, AirnoteUi.marginParams(this, top = 6, bottom = 4))
 
         createCard.addView(AirnoteUi.sectionLabel(this, "Offline lifetime"), AirnoteUi.marginParams(this, top = 16))
-        val lifeRowOne = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val lifeRowTwo = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val lifeRowOne = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            minimumHeight = AirnoteUi.dp(this@CreateFundActivity, 76)
+        }
+        val lifeRowTwo = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            minimumHeight = AirnoteUi.dp(this@CreateFundActivity, 76)
+        }
         SenderLifetimePolicy.presets.forEachIndexed { index, preset ->
             val label = if (preset.seconds == SkrAccessPolicy.RESERVE_PLUS_MAX_LIFETIME_SECONDS) {
                 "24 hours\nSKR+"
@@ -152,14 +164,16 @@ class CreateFundActivity : AppCompatActivity() {
             val row = if (index < 2) lifeRowOne else lifeRowTwo
             row.addView(
                 button,
-                LinearLayout.LayoutParams(0, AirnoteUi.dp(this, 64), 1f).apply {
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
                     marginStart = AirnoteUi.dp(this@CreateFundActivity, 3)
                     marginEnd = AirnoteUi.dp(this@CreateFundActivity, 3)
+                    topMargin = AirnoteUi.dp(this@CreateFundActivity, 6)
+                    bottomMargin = AirnoteUi.dp(this@CreateFundActivity, 6)
                 }
             )
         }
-        createCard.addView(lifeRowOne, AirnoteUi.marginParams(this, top = 8))
-        createCard.addView(lifeRowTwo, AirnoteUi.marginParams(this, top = 6))
+        createCard.addView(lifeRowOne, AirnoteUi.marginParams(this, top = 6))
+        createCard.addView(lifeRowTwo, AirnoteUi.marginParams(this, top = 4, bottom = 4))
 
         previewView = AirnoteUi.body(this, "", 13f).apply {
             setPadding(
