@@ -28,6 +28,7 @@ import java.util.UUID
 
 class Gate04ReceiverActivity : AppCompatActivity() {
     private lateinit var walletBindingStore: AirnoteReceiveWalletBindingStore
+    private lateinit var handoffStore: AirnoteReceiveHandoffStore
     private lateinit var walletActivityResultSender: ActivityResultSender
     private lateinit var walletStatus: TextView
     private lateinit var selectWalletButton: Button
@@ -53,6 +54,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
         walletActivityResultSender = ActivityResultSender(this)
         title = "AIRNOTE — Receive"
         walletBindingStore = AirnoteReceiveWalletBindingStore(this)
+        handoffStore = AirnoteReceiveHandoffStore(this)
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -156,6 +158,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
         root.addView(copyAcceptedButton)
 
         setContentView(ScrollView(this).apply { addView(root) })
+        restoreActiveRequest()
         renderWalletBinding()
     }
 
