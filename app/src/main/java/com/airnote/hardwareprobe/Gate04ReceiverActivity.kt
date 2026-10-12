@@ -108,6 +108,13 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             background = AirnoteUi.rounded(this@Gate04ReceiverActivity, "#F8FCFF", 20, "#DDE7F0")
         }
         receiveCard.addView(walletStatus)
+        receiveCard.addView(
+            AirnoteUi.devnetNotice(
+                this,
+                "The wallet you bind will receive AIRNOTE settlement on Solana Devnet."
+            ),
+            AirnoteUi.marginParams(this, top = 8)
+        )
 
         selectWalletButton = AirnoteUi.secondaryButton(this, "Select receive wallet").apply {
             setOnClickListener { connectReceiveWallet() }
