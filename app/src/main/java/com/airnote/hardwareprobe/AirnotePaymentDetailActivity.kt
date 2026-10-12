@@ -32,24 +32,22 @@ class AirnotePaymentDetailActivity : AppCompatActivity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(32, 32, 32, 48)
+            setPadding(AirnoteUi.dp(this@AirnotePaymentDetailActivity, 24), AirnoteUi.dp(this@AirnotePaymentDetailActivity, 28), AirnoteUi.dp(this@AirnotePaymentDetailActivity, 24), AirnoteUi.dp(this@AirnotePaymentDetailActivity, 48))
+            setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
         }
         val amount = payment.amountBaseUnits / 1_000_000.0
-        root.addView(TextView(this).apply {
-            text = "${"%.2f".format(amount)} USDC"
-            textSize = 30f
-        })
-        root.addView(TextView(this).apply {
-            text = if (payment.direction == PaymentDirection.RECEIVED) "Received" else "Sent"
-            textSize = 18f
-        })
-        root.addView(TextView(this).apply {
-            text = statusLabel(payment.status)
-            textSize = 22f
-            setPadding(0, 10, 0, 24)
-        })
+        root.addView(AirnoteUi.sectionLabel(this, if (payment.direction == PaymentDirection.RECEIVED) "Received Airnote" else "Sent Airnote"))
+        root.addView(AirnoteUi.title(this, "${"%.2f".format(amount)} USDC", 34f), AirnoteUi.marginParams(this, top = 4))
+        root.addView(
+            AirnoteUi.statusPill(
+                this,
+                statusLabel(payment.status),
+                payment.status == PaymentStatus.SETTLED || payment.status == PaymentStatus.ACCEPTED_OFFLINE
+            ),
+            AirnoteUi.marginParams(this, top = 8, bottom = 16)
+        )
 
-        root.addView(TextView(this).apply {
+        root.addView(AirnoteUi.body(this, "", 14f).apply {
             text = buildString {
                 appendLine("Created\n${Instant.ofEpochSecond(payment.createdAtUnixSeconds)}")
                 appendLine()
@@ -70,13 +68,13 @@ class AirnotePaymentDetailActivity : AppCompatActivity() {
                     payment.settlementSignature?.let { appendLine("\nSolana transaction\n$it") }
                 }
             }
-            textSize = 15f
             setTextIsSelectable(true)
+            setPadding(AirnoteUi.dp(this@AirnotePaymentDetailActivity, 16), AirnoteUi.dp(this@AirnotePaymentDetailActivity, 16), AirnoteUi.dp(this@AirnotePaymentDetailActivity, 16), AirnoteUi.dp(this@AirnotePaymentDetailActivity, 16))
+            background = AirnoteUi.rounded(this@AirnotePaymentDetailActivity, AirnoteUi.CLOUD, 20, AirnoteUi.MIST)
         })
 
         if (canSettle(payment)) {
-            root.addView(Button(this).apply {
-                text = settlementActionLabel(payment)
+            root.addView(AirnoteUi.primaryButton(this, settlementActionLabel(payment)).apply {
                 setOnClickListener {
                     isEnabled = false
                     text = if (payment.settlementSignature == null) "OPENING SOLANA WALLET…" else "CHECKING SOLANA…"
@@ -104,7 +102,7 @@ class AirnotePaymentDetailActivity : AppCompatActivity() {
                     }
                 }
             })
-            root.addView(TextView(this).apply {
+            root.addView(AirnoteUi.body(this, "", 13f).apply {
                 text = if (payment.settlementSignature == null) {
                     "Your Solana wallet will open to authorize the recipient-bound redemption. AIRNOTE never receives your wallet private key."
                 } else {
@@ -116,8 +114,7 @@ class AirnotePaymentDetailActivity : AppCompatActivity() {
         }
 
         payment.protocolPayload?.let { payload ->
-            root.addView(Button(this).apply {
-                text = "COPY RAW SETTLEMENT PAYLOAD"
+            root.addView(AirnoteUi.secondaryButton(this, "Technical · Copy raw settlement payload").apply {
                 setOnClickListener {
                     val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     clipboard.setPrimaryClip(ClipData.newPlainText("AIRNOTE settlement payload", payload))
@@ -126,7 +123,7 @@ class AirnotePaymentDetailActivity : AppCompatActivity() {
             })
         }
 
-        root.addView(TextView(this).apply {
+        root.addView(AirnoteUi.body(this, "", 12f).apply {
             text = buildString {
                 appendLine("TECHNICAL DETAILS")
                 appendLine("Airnote ID: ${payment.id}")
