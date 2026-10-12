@@ -35,6 +35,7 @@ class AirnotePaymentDetailActivity : AppCompatActivity() {
             setPadding(AirnoteUi.dp(this@AirnotePaymentDetailActivity, 24), AirnoteUi.dp(this@AirnotePaymentDetailActivity, 28), AirnoteUi.dp(this@AirnotePaymentDetailActivity, 24), AirnoteUi.dp(this@AirnotePaymentDetailActivity, 48))
             setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
         }
+        AirnoteUi.applyTopInset(root)
         val amount = payment.amountBaseUnits / 1_000_000.0
         root.addView(AirnoteUi.sectionLabel(this, if (payment.direction == PaymentDirection.RECEIVED) "Received Airnote" else "Sent Airnote"))
         root.addView(AirnoteUi.title(this, "${"%.2f".format(amount)} USDC", 34f), AirnoteUi.marginParams(this, top = 4))
