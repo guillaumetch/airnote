@@ -117,7 +117,8 @@ class Gate04SenderActivity : AppCompatActivity() {
                         .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
                         .setPrompt("Scan 1 of 2 • receiver request")
                         .setBeepEnabled(false)
-                        .setOrientationLocked(false)
+                        .setCaptureActivity(PortraitCaptureActivity::class.java)
+                        .setOrientationLocked(true)
                 )
             }
         }
