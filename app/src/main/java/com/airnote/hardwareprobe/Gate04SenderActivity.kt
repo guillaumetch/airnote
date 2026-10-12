@@ -75,6 +75,7 @@ class Gate04SenderActivity : AppCompatActivity() {
 
         scanRequestButton = AirnoteUi.primaryButton(this, "Scan request · 1 of 2").apply {
             isEnabled = false
+            alpha = 0.38f
             setOnClickListener {
                 requestScanner.launch(
                     ScanOptions()
@@ -100,8 +101,9 @@ class Gate04SenderActivity : AppCompatActivity() {
         }
         root.addView(status)
 
-        copyTransferButton = AirnoteUi.secondaryButton(this, "Technical · Copy signed payload").apply {
+        copyTransferButton = AirnoteUi.compactButton(this, "Technical · Copy signed payload").apply {
             isEnabled = false
+            alpha = 0.38f
             setOnClickListener {
                 val payload = transferQr ?: return@setOnClickListener
                 val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -110,7 +112,11 @@ class Gate04SenderActivity : AppCompatActivity() {
         }
         root.addView(copyTransferButton)
 
-        setContentView(ScrollView(this).apply { addView(root) })
+        setContentView(ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
+            addView(root)
+        })
         renderLocalNotes()
     }
 
@@ -167,7 +173,9 @@ class Gate04SenderActivity : AppCompatActivity() {
             transferQr = lockedTransfer
             qr.setImageBitmap(QrSupport.render(lockedTransfer))
             scanRequestButton.isEnabled = false
+            scanRequestButton.alpha = 0.38f
             copyTransferButton.isEnabled = true
+            copyTransferButton.alpha = 1f
             phase.text = "SCAN 2 OF 2  •  SHOW LOCKED PAYMENT QR"
             status.text = buildString {
                 appendLine("HANDOFF ALREADY AUTHORIZED")
@@ -183,7 +191,9 @@ class Gate04SenderActivity : AppCompatActivity() {
             transferQr = null
             qr.setImageDrawable(null)
             scanRequestButton.isEnabled = true
+            scanRequestButton.alpha = 1f
             copyTransferButton.isEnabled = false
+            copyTransferButton.alpha = 0.38f
             phase.text = "SCAN 1 OF 2  •  SCAN RECEIVER REQUEST"
             status.text = buildString {
                 appendLine("AIRNOTE READY OFFLINE  ✓")
@@ -203,7 +213,9 @@ class Gate04SenderActivity : AppCompatActivity() {
         transferQr = null
         qr.setImageDrawable(null)
         scanRequestButton.isEnabled = false
+        scanRequestButton.alpha = 0.38f
         copyTransferButton.isEnabled = false
+        copyTransferButton.alpha = 0.38f
         phase.text = "CHOOSE A READY AIRNOTE"
         status.text = "AIRNOTE LOAD FAILED\n" + (error.message ?: error::class.java.simpleName)
     }
@@ -251,7 +263,9 @@ class Gate04SenderActivity : AppCompatActivity() {
             transferQr = encoded
             qr.setImageBitmap(QrSupport.render(encoded))
             copyTransferButton.isEnabled = true
+            copyTransferButton.alpha = 1f
             scanRequestButton.isEnabled = false
+            scanRequestButton.alpha = 0.38f
             phase.text = "SCAN 2 OF 2  •  SHOW PAYMENT QR"
             status.text = buildString {
                 appendLine("SIGNED PAYMENT READY")
