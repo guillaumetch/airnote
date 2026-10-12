@@ -69,9 +69,10 @@ class Gate04SenderActivity : AppCompatActivity() {
         }
         root.addView(localNotesContainer)
 
-        root.addView(AirnoteUi.secondaryButton(this, "Import certificate · recovery").apply {
+        val recoveryButton = AirnoteUi.compactButton(this, "Recovery import").apply {
+            alpha = 0.55f
             setOnClickListener { openCertificate.launch(arrayOf("application/json", "text/plain", "*/*")) }
-        }, AirnoteUi.marginParams(this, top = 8, bottom = 8))
+        }
 
         scanRequestButton = AirnoteUi.primaryButton(this, "Scan request · 1 of 2").apply {
             isEnabled = false
@@ -86,7 +87,7 @@ class Gate04SenderActivity : AppCompatActivity() {
                 )
             }
         }
-        root.addView(scanRequestButton)
+        root.addView(scanRequestButton, AirnoteUi.marginParams(this, top = 10))
 
         qr = ImageView(this).apply {
             adjustViewBounds = true
@@ -110,7 +111,7 @@ class Gate04SenderActivity : AppCompatActivity() {
                 clipboard.setPrimaryClip(ClipData.newPlainText("AIRNOTE transfer", payload))
             }
         }
-        root.addView(copyTransferButton)
+        copyTransferButton.visibility = android.view.View.GONE
 
         setContentView(ScrollView(this).apply {
             isFillViewport = true
