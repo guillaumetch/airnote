@@ -34,7 +34,7 @@ const VERSION = 1;
 
 function usage(message) {
   if (message) console.error(`error: ${message}\n`);
-  console.error(`AIRNOTE Gate 04 Devnet redemption
+  console.error(`AIRNOTE Gate 05 Devnet redemption
 
 Usage:
   node redeem-airnote.mjs \\
@@ -44,8 +44,10 @@ Usage:
     [--payer-wallet <FEE_PAYER_KEYPAIR_JSON>] \\
     [--rpc <DEVNET_RPC>]
 
-If --payer-wallet is omitted, the recipient pays transaction/ATA rent.
-The tool never prints secret key material.`);
+The recipient request expiry is checked during the offline handoff, not as a
+post-acceptance settlement deadline. Settlement remains valid until the Airnote
+itself expires. If --payer-wallet is omitted, the recipient pays transaction/ATA
+rent. The tool never prints secret key material.`);
   process.exit(message ? 2 : 0);
 }
 
@@ -244,7 +246,7 @@ async function main() {
   if (![1_000_000n, 5_000_000n, 10_000_000n].includes(transfer.amountBaseUnits)) {
     throw new Error(`unsupported AIRNOTE amount ${transfer.amountBaseUnits}`);
   }
-  if (transfer.riskTier > 1) throw new Error(`risk tier ${transfer.riskTier} exceeds Gate 04 policy`);
+  if (transfer.riskTier > 1) throw new Error(`risk tier ${transfer.riskTier} exceeds Gate 05 policy`);
 
   const note = derive(expectedProgram, NOTE_SEED, transfer.noteId);
   const vault = derive(expectedProgram, VAULT_SEED, transfer.noteId);
@@ -258,9 +260,9 @@ async function main() {
   if (!noteInfo.owner.equals(expectedProgram)) throw new Error("AIRNOTE note account is owned by the wrong program");
 
   const clock = await chainTime(connection);
-  if (clock.unixSeconds > transfer.requestExpiresAt) throw new Error("receiver request expired before redemption");
   if (clock.unixSeconds >= transfer.noteExpiresAt) throw new Error("Airnote expired before redemption");
   if (transfer.requestExpiresAt < transfer.issuedAt) throw new Error("receiver request expiry predates note issuance");
+  if (transfer.requestExpiresAt > transfer.noteExpiresAt) throw new Error("receiver request expiry outlives Airnote");
 
   const recipientToken = getAssociatedTokenAddressSync(
     DEVNET_USDC,
@@ -332,6 +334,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(`AIRNOTE GATE 04 REDEEM FAIL: ${error?.stack ?? error}`);
+  console.error(`AIRNOTE GATE 05 REDEEM FAIL: ${error?.stack ?? error}`);
   process.exit(1);
 });

@@ -2,6 +2,14 @@
 <resources>
     <style name="Theme.AirnoteProbe" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">#F5FAFF</item>
+        <item name="android:navigationBarColor">#F5FAFF</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="colorPrimary">#2478F3</item>
+        <item name="colorPrimaryVariant">#0B2A5B</item>
+        <item name="colorSecondary">#20C983</item>
+        <item name="android:colorAccent">#2478F3</item>
+        <item name="android:windowActionModeOverlay">true</item>
     </style>
 </resources>

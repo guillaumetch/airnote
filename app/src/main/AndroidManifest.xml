@@ -1,12 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="AIRNOTE"
         android:supportsRtl="true"
         android:theme="@style/Theme.AirnoteProbe">
+        <activity
+            android:name=".PortraitCaptureActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
+            android:name=".CreateFundActivity"
+            android:exported="false" />
+        <activity
+            android:name=".AirnoteProofActivity"
+            android:exported="false" />
+        <activity
+            android:name=".AirnotePaymentDetailActivity"
+            android:exported="false" />
+        <activity
+            android:name=".AirnoteHistoryActivity"
+            android:exported="false" />
+        <activity
+            android:name=".DeveloperToolsActivity"
+            android:exported="false" />
         <activity
             android:name=".Gate04SenderActivity"
             android:exported="false" />

@@ -1,118 +1,426 @@
 package com.airnote.hardwareprobe
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
-import android.widget.Button
+import android.view.View
+import android.view.ViewOutlineProvider
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import java.io.File
+import androidx.lifecycle.lifecycleScope
+import com.solana.mobilewalletadapter.clientlib.ActivityResultSender
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
-    private lateinit var reportView: TextView
-    private var latestReport: String = "AIRNOTE is ready. Gate 04 uses SEND and RECEIVE below."
+    private lateinit var localAirnoteStore: LocalAirnoteStore
+    private lateinit var heroReserveAmountView: TextView
+    private lateinit var heroReserveMetaView: TextView
+    private lateinit var recentActivityContainer: LinearLayout
+    private lateinit var expiredRefundContainer: LinearLayout
+    private lateinit var walletActivityResultSender: ActivityResultSender
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        localAirnoteStore = LocalAirnoteStore(this)
+        walletActivityResultSender = ActivityResultSender(this)
+        localAirnoteStore.importLegacyMintRequests(getExternalFilesDir(null)?.listFiles().orEmpty())
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(32, 32, 32, 32)
+            setPadding(
+                AirnoteUi.dp(this@MainActivity, 22),
+                AirnoteUi.dp(this@MainActivity, 18),
+                AirnoteUi.dp(this@MainActivity, 22),
+                AirnoteUi.dp(this@MainActivity, 28)
+            )
+            setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
+        }
+        AirnoteUi.applyTopInset(root)
+
+        val brandRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        brandRow.addView(
+            AirnoteMarkView(this),
+            LinearLayout.LayoutParams(AirnoteUi.dp(this, 38), AirnoteUi.dp(this, 32))
+        )
+        brandRow.addView(
+            AirnoteUi.title(this, "AIRNOTE", 19f),
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginStart = AirnoteUi.dp(this@MainActivity, 8)
+            }
+        )
+        root.addView(brandRow)
+        root.addView(
+            AirnoteUi.body(this, "Money that moves with you. Online or offline.", 12.5f),
+            AirnoteUi.marginParams(this, top = 4, bottom = 12)
+        )
+
+        val heroFrame = FrameLayout(this).apply {
+            background = AirnoteUi.rounded(this@MainActivity, "#FFFFFF", 24, "#D3E3EF")
+            clipToOutline = true
+            outlineProvider = ViewOutlineProvider.BACKGROUND
+        }
+        heroFrame.addView(
+            ImageView(this).apply {
+                setImageResource(R.drawable.airnote_hero)
+                scaleType = ImageView.ScaleType.CENTER_CROP
+            },
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                AirnoteUi.dp(this, 178)
+            )
+        )
+        val hero = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(
+                AirnoteUi.dp(this@MainActivity, 18),
+                AirnoteUi.dp(this@MainActivity, 18),
+                AirnoteUi.dp(this@MainActivity, 18),
+                AirnoteUi.dp(this@MainActivity, 16)
+            )
+        }
+        hero.addView(AirnoteUi.sectionLabel(this, "USDC Balance"))
+        heroReserveAmountView = AirnoteUi.title(this, "0.00 USDC", 31f)
+        hero.addView(heroReserveAmountView, AirnoteUi.marginParams(this, top = 4))
+        hero.addView(AirnoteUi.statusPill(this, "●  Ready Offline", true), AirnoteUi.marginParams(this, top = 7))
+        heroReserveMetaView = AirnoteUi.body(this, "Create an Airnote to prepare funds for offline use.", 11.5f)
+        hero.addView(heroReserveMetaView, AirnoteUi.marginParams(this, top = 7))
+        heroFrame.addView(
+            hero,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+        heroFrame.addView(
+            View(this).apply {
+                background = AirnoteUi.rounded(this@MainActivity, "#00FFFFFF", 24, "#D3E3EF")
+            },
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+        root.addView(heroFrame, AirnoteUi.marginParams(this, height = AirnoteUi.dp(this, 178), bottom = 12))
+
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            weightSum = 4f
+        }
+        val tiles = listOf(
+            Triple("＋", Pair("Create & Fund", "Add USDC\nto your AirNote"), CreateFundActivity::class.java),
+            Triple("➤", Pair("Send", "Pay anyone\noffline or online"), Gate04SenderActivity::class.java),
+            Triple("⌗", Pair("Receive", "Show your code\nor share a link"), Gate04ReceiverActivity::class.java),
+            Triple("▤", Pair("Activity", "View your\ntransactions"), AirnoteHistoryActivity::class.java)
+        )
+        tiles.forEach { (icon, copy, target) ->
+            val tile = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(
+                    AirnoteUi.dp(this@MainActivity, 4),
+                    AirnoteUi.dp(this@MainActivity, 10),
+                    AirnoteUi.dp(this@MainActivity, 4),
+                    AirnoteUi.dp(this@MainActivity, 10)
+                )
+                background = AirnoteUi.rounded(this@MainActivity, "#FCFEFF", 18, "#DDE7F0")
+                elevation = AirnoteUi.dp(this@MainActivity, 1).toFloat()
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { startActivity(Intent(this@MainActivity, target)) }
+            }
+            tile.addView(AirnoteUi.iconBubble(this, icon, 40))
+            tile.addView(TextView(this).apply {
+                text = copy.first
+                textSize = 10.5f
+                gravity = Gravity.CENTER
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(AirnoteUi.color(AirnoteUi.NIGHT))
+            }, AirnoteUi.marginParams(this, top = 4))
+            tile.addView(TextView(this).apply {
+                text = copy.second
+                textSize = 8.5f
+                gravity = Gravity.CENTER
+                setTextColor(AirnoteUi.color(AirnoteUi.SLATE))
+            }, AirnoteUi.marginParams(this, top = 2))
+            actions.addView(
+                tile,
+                LinearLayout.LayoutParams(0, AirnoteUi.dp(this, 106), 1f).apply {
+                    marginStart = AirnoteUi.dp(this@MainActivity, 3)
+                    marginEnd = AirnoteUi.dp(this@MainActivity, 3)
+                }
+            )
+        }
+        root.addView(actions, AirnoteUi.marginParams(this, bottom = 12))
+
+        val readyCard = AirnoteUi.glassCard(this, 14)
+        val readyRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        readyRow.addView(AirnoteUi.iconBubble(this, "◌", 38))
+        val readyCopy = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        readyCopy.addView(AirnoteUi.title(this, "Ready Offline", 15f))
+        readyCopy.addView(AirnoteUi.body(this, "Two scans. No internet required.", 12f))
+        readyRow.addView(
+            readyCopy,
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginStart = AirnoteUi.dp(this@MainActivity, 10)
+            }
+        )
+        readyCard.addView(readyRow)
+        root.addView(readyCard, AirnoteUi.marginParams(this, bottom = 12))
+
+        expiredRefundContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        root.addView(expiredRefundContainer, AirnoteUi.marginParams(this, bottom = 18))
+
+        val recentHeader = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        recentHeader.addView(
+            AirnoteUi.title(this, "Recent Activity", 18f),
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        )
+        recentHeader.addView(AirnoteUi.body(this, "See all", 12f).apply {
+            setTextColor(AirnoteUi.color(AirnoteUi.AIR))
+            setOnClickListener { startActivity(Intent(this@MainActivity, AirnoteHistoryActivity::class.java)) }
+        })
+        root.addView(recentHeader, AirnoteUi.marginParams(this, bottom = 8))
+
+        recentActivityContainer = AirnoteUi.glassCard(this, 12)
+        root.addView(recentActivityContainer)
+
+        val devnetCard = AirnoteUi.glassCard(this, 14).apply {
+            background = AirnoteUi.rounded(this@MainActivity, "#F8FCFF", 20, "#D7E5F1")
+        }
+        devnetCard.addView(AirnoteUi.title(this, "Testing on Devnet", 15f))
+        devnetCard.addView(
+            AirnoteUi.body(
+                this,
+                "Need test funds? Get Devnet SOL for fees and Circle Devnet USDC for AIRNOTE funding.",
+                11.5f
+            ),
+            AirnoteUi.marginParams(this, top = 4, bottom = 8)
+        )
+        val faucetRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        faucetRow.addView(
+            AirnoteUi.secondaryButton(this, "Get Devnet SOL").apply {
+                setOnClickListener {
+                    startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse("https://faucet.solana.com/"))
+                    )
+                }
+            },
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginEnd = AirnoteUi.dp(this@MainActivity, 4)
+            }
+        )
+        faucetRow.addView(
+            AirnoteUi.secondaryButton(this, "Get Devnet USDC").apply {
+                setOnClickListener {
+                    startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse("https://faucet.circle.com/"))
+                    )
+                }
+            },
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginStart = AirnoteUi.dp(this@MainActivity, 4)
+            }
+        )
+        devnetCard.addView(faucetRow)
+        root.addView(devnetCard, AirnoteUi.marginParams(this, top = 12))
+
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
+            addView(root)
         }
 
-        root.addView(TextView(this).apply {
-            text = "AIRNOTE\nSeeker Lab"
-            textSize = 28f
-            gravity = Gravity.CENTER_HORIZONTAL
-        })
+        setContentView(
+            AirnoteBottomNav.attach(
+                this,
+                scroll,
+                AirnoteBottomNav.Tab.HOME
+            )
+        )
 
-        root.addView(Button(this).apply {
-            text = "SEND AIRNOTE — SEEKER A"
-            setOnClickListener { startActivity(Intent(this@MainActivity, Gate04SenderActivity::class.java)) }
-        })
-        root.addView(Button(this).apply {
-            text = "RECEIVE AIRNOTE — SEEKER B"
-            setOnClickListener { startActivity(Intent(this@MainActivity, Gate04ReceiverActivity::class.java)) }
-        })
+        refreshHome()
+        AirnoteReconciliationScheduler.enqueue(this)
+    }
 
-        val runGate00 = Button(this).apply {
-            text = "RUN GATE 00 HARDWARE PROBE"
-            setOnClickListener {
-                isEnabled = false
-                reportView.text = "Running Gate 00 hardware probe…"
-                Thread {
-                    val result = ProbeEngine(this@MainActivity).run()
-                    latestReport = result.report
-                    runOnUiThread {
-                        reportView.text = latestReport
-                        isEnabled = true
+    override fun onResume() {
+        super.onResume()
+        if (::recentActivityContainer.isInitialized) refreshHome()
+        AirnoteReconciliationScheduler.enqueue(this)
+    }
+
+    private fun refreshHome() {
+        val notes = localAirnoteStore.all()
+        val readyNotes = localAirnoteStore.sendable()
+            .filter { it.state == LocalAirnoteState.READY_OFFLINE }
+        val expiredUnsent = localAirnoteStore.expiredUnsent()
+        val readyAmount = readyNotes.sumOf { it.amountUsdc }
+
+        heroReserveAmountView.text = String.format("%.2f USDC", readyAmount.toDouble())
+        heroReserveMetaView.text = when {
+            readyNotes.isEmpty() -> "No prepared Airnotes yet."
+            readyNotes.size == 1 -> "1 Airnote ready to move offline."
+            else -> readyNotes.size.toString() + " Airnotes ready to move offline."
+        }
+
+        expiredRefundContainer.removeAllViews()
+        expiredUnsent.forEach { note ->
+            val card = AirnoteUi.glassCard(this, 14).apply {
+                background = AirnoteUi.rounded(this@MainActivity, "#FFF8EA", 20, "#F0D7A0")
+            }
+            card.addView(AirnoteUi.title(this, "Expired Airnote", 15f))
+            card.addView(
+                AirnoteUi.body(
+                    this,
+                    note.amountUsdc.toString() + " USDC · Never handed off\nFunds are still safe on Solana.",
+                    11.5f
+                ),
+                AirnoteUi.marginParams(this, top = 4, bottom = 8)
+            )
+            card.addView(
+                AirnoteUi.primaryButton(this, "Refund " + note.amountUsdc + " USDC").apply {
+                    setOnClickListener {
+                        isEnabled = false
+                        text = "Opening funder wallet…"
+                        lifecycleScope.launch {
+                            val result = runCatching {
+                                AirnoteRefundCoordinator(localAirnoteStore)
+                                    .refund(note.noteIdHex, walletActivityResultSender)
+                            }
+                            result.onSuccess { refunded ->
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    refunded.note.amountUsdc.toString() + " USDC refunded on Devnet",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }.onFailure { error ->
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    refundErrorCopy(error),
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                            refreshHome()
+                        }
                     }
-                }.start()
-            }
+                }
+            )
+            expiredRefundContainer.addView(card, AirnoteUi.marginParams(this, bottom = 8))
         }
-        root.addView(runGate00)
 
-        val createGate03Key = Button(this).apply {
-            text = "CREATE GATE 03 NOTE OWNER"
-            setOnClickListener {
-                isEnabled = false
-                reportView.text = "Creating persistent StrongBox note-owner key…"
-                Thread {
-                    latestReport = runCatching {
-                        NoteOwnerKeyManager(this@MainActivity).create().report()
-                    }.getOrElse { t ->
-                        "AIRNOTE — GATE 03 NOTE OWNER\n\nFAIL\n${t::class.java.name}: ${t.message.orEmpty()}"
+        recentActivityContainer.removeAllViews()
+        val paymentStore = AirnotePaymentStore(this)
+        paymentStore.expireDue()
+        val payments = paymentStore.all()
+            .sortedByDescending { it.createdAtUnixSeconds }
+            .take(3)
+
+        if (payments.isEmpty() && notes.isEmpty()) {
+            recentActivityContainer.addView(
+                AirnoteUi.body(this, "No activity yet. Create your first Airnote.", 13f)
+            )
+            return
+        }
+
+        payments.forEachIndexed { index, payment ->
+            if (index > 0) {
+                recentActivityContainer.addView(
+                    android.view.View(this).apply {
+                        setBackgroundColor(AirnoteUi.color(AirnoteUi.MIST))
+                    },
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        AirnoteUi.dp(this, 1)
+                    ).apply {
+                        topMargin = AirnoteUi.dp(this@MainActivity, 8)
+                        bottomMargin = AirnoteUi.dp(this@MainActivity, 8)
                     }
-                    runOnUiThread {
-                        reportView.text = latestReport
-                        isEnabled = true
-                    }
-                }.start()
+                )
+            }
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            val direction = if (payment.direction == PaymentDirection.RECEIVED) "Received" else "Sent"
+            left.addView(AirnoteUi.title(this, direction, 14f))
+            left.addView(AirnoteUi.body(this, statusLabel(payment.status), 11f))
+            row.addView(
+                left,
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            )
+            row.addView(
+                AirnoteUi.title(
+                    this,
+                    String.format("%.2f USDC", payment.amountBaseUnits / 1_000_000.0),
+                    14f
+                )
+            )
+            recentActivityContainer.addView(row)
+        }
+
+        if (payments.isEmpty()) {
+            notes.take(3).forEach { note ->
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                }
+                val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                left.addView(AirnoteUi.title(this, note.amountUsdc.toString() + " USDC Airnote", 14f))
+                left.addView(
+                    AirnoteUi.body(
+                        this,
+                        note.state.name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() },
+                        11f
+                    )
+                )
+                row.addView(
+                    left,
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                )
+                recentActivityContainer.addView(row)
             }
         }
-        root.addView(createGate03Key)
+    }
 
-        root.addView(Button(this).apply {
-            text = "RESET VIEW"
-            setOnClickListener {
-                latestReport = "AIRNOTE is ready. Gate 04 uses SEND and RECEIVE above."
-                reportView.text = latestReport
-            }
-        })
+    private fun refundErrorCopy(error: Throwable): String = when (error) {
+        is AirnoteRefundCoordinator.WalletUnavailableException ->
+            "No compatible Solana wallet is available."
+        is AirnoteRefundCoordinator.WalletSubmissionException ->
+            "Refund failed. Use the original funding wallet on Solana Devnet."
+        is AirnoteSolanaRpc.FinalizationTimeoutException ->
+            "Refund was submitted but is still finalizing. Check again before retrying."
+        is AirnoteSolanaRpc.RpcException ->
+            "Solana Devnet is unavailable right now. Your USDC remains locked safely in the Airnote vault."
+        else -> error.message ?: "Refund could not complete."
+    }
 
-        root.addView(Button(this).apply {
-            text = "COPY REPORT"
-            setOnClickListener {
-                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(ClipData.newPlainText("AIRNOTE report", latestReport))
-                Toast.makeText(this@MainActivity, "Report copied", Toast.LENGTH_SHORT).show()
-            }
-        })
-
-        root.addView(Button(this).apply {
-            text = "EXPORT REPORT"
-            setOnClickListener {
-                val file = File(getExternalFilesDir(null), "airnote-report.txt")
-                file.writeText(latestReport)
-                Toast.makeText(this@MainActivity, "Saved: ${file.absolutePath}", Toast.LENGTH_LONG).show()
-            }
-        })
-
-        reportView = TextView(this).apply {
-            text = latestReport
-            setTextIsSelectable(true)
-            textSize = 13f
-            typeface = android.graphics.Typeface.MONOSPACE
-            setPadding(0, 24, 0, 48)
-        }
-        root.addView(reportView)
-
-        setContentView(ScrollView(this).apply { addView(root) })
+    private fun statusLabel(status: PaymentStatus): String = when (status) {
+        PaymentStatus.CREATED -> "Created"
+        PaymentStatus.ACCEPTED_OFFLINE -> "Received offline"
+        PaymentStatus.PENDING -> "Waiting to settle"
+        PaymentStatus.SETTLING -> "Settling"
+        PaymentStatus.SETTLED -> "Settled"
+        PaymentStatus.FAILED_RETRYABLE -> "Needs retry"
+        PaymentStatus.REJECTED -> "Rejected"
+        PaymentStatus.EXPIRED -> "Expired"
     }
 }

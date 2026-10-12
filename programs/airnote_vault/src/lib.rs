@@ -124,10 +124,15 @@ pub mod airnote_vault {
 
         require!(note.status == STATUS_FUNDED, AirnoteError::NoteConsumed);
         require!(now < note.expires_at_unix_s, AirnoteError::NoteExpired);
+
+        // The short recipient-request expiry is a handoff-freshness boundary checked by
+        // the two devices before acceptance. Once the StrongBox transfer authorization
+        // exists, the recipient may reconnect and settle later, as long as the Airnote
+        // itself is still live. On-chain we still require the signed request expiry to
+        // belong to this note's lifetime so it cannot outlive the note envelope.
         require!(
             request_expires_at_unix_s >= note.issued_at_unix_s
-                && request_expires_at_unix_s <= note.expires_at_unix_s
-                && now <= request_expires_at_unix_s,
+                && request_expires_at_unix_s <= note.expires_at_unix_s,
             AirnoteError::InvalidRequestExpiry
         );
         require!(

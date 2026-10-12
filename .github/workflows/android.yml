@@ -2,9 +2,9 @@ name: Android AIRNOTE
 
 on:
   push:
-    branches: [ main, gate-00-hardware-probe, gate-01-note-protocol, gate-02-solana-vault, gate-03-mint-airnotes, gate-04-offline-transfer ]
+    branches: [ main, 'gate-*' ]
   pull_request:
-    branches: [ main, gate-00-hardware-probe, gate-01-note-protocol, gate-02-solana-vault, gate-03-mint-airnotes ]
+    branches: [ main, 'gate-*' ]
 
 jobs:
   build:
@@ -18,13 +18,53 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Check attestor API syntax
+        run: node --check api/certify.mjs
+
+      - name: Attestor Node / Rust parity
+        run: node tools/attestor-node-parity.mjs
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+
+      - name: Configure optional stable debug signing
+        shell: bash
+        env:
+          AIRNOTE_ANDROID_KEYSTORE_B64: ${{ secrets.AIRNOTE_ANDROID_KEYSTORE_B64 }}
+          AIRNOTE_ANDROID_KEYSTORE_PASSWORD_SECRET: ${{ secrets.AIRNOTE_ANDROID_KEYSTORE_PASSWORD }}
+          AIRNOTE_ANDROID_KEY_ALIAS_SECRET: ${{ secrets.AIRNOTE_ANDROID_KEY_ALIAS }}
+          AIRNOTE_ANDROID_KEY_PASSWORD_SECRET: ${{ secrets.AIRNOTE_ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${AIRNOTE_ANDROID_KEYSTORE_B64:-}" ]]; then
+            echo "Stable signing is not configured; using the runner debug key."
+            exit 0
+          fi
+
+          : "${AIRNOTE_ANDROID_KEYSTORE_PASSWORD_SECRET:?AIRNOTE_ANDROID_KEYSTORE_PASSWORD is required when AIRNOTE_ANDROID_KEYSTORE_B64 is set}"
+          : "${AIRNOTE_ANDROID_KEY_ALIAS_SECRET:?AIRNOTE_ANDROID_KEY_ALIAS is required when AIRNOTE_ANDROID_KEYSTORE_B64 is set}"
+          : "${AIRNOTE_ANDROID_KEY_PASSWORD_SECRET:?AIRNOTE_ANDROID_KEY_PASSWORD is required when AIRNOTE_ANDROID_KEYSTORE_B64 is set}"
+
+          printf '%s' "$AIRNOTE_ANDROID_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/airnote-ci.jks"
+          chmod 600 "$RUNNER_TEMP/airnote-ci.jks"
+
+          echo "AIRNOTE_ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/airnote-ci.jks" >> "$GITHUB_ENV"
+          echo "AIRNOTE_ANDROID_KEYSTORE_PASSWORD=$AIRNOTE_ANDROID_KEYSTORE_PASSWORD_SECRET" >> "$GITHUB_ENV"
+          echo "AIRNOTE_ANDROID_KEY_ALIAS=$AIRNOTE_ANDROID_KEY_ALIAS_SECRET" >> "$GITHUB_ENV"
+          echo "AIRNOTE_ANDROID_KEY_PASSWORD=$AIRNOTE_ANDROID_KEY_PASSWORD_SECRET" >> "$GITHUB_ENV"
 
       - name: Unit tests
         run: gradle testDebugUnitTest
 
       - name: Build debug APK
         run: gradle assembleDebug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: airnote-debug-${{ github.sha }}
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
