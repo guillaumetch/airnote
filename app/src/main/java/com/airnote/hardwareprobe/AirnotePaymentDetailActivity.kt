@@ -79,6 +79,13 @@ class AirnotePaymentDetailActivity : AppCompatActivity() {
         })
 
         if (canSettle(payment)) {
+            root.addView(
+                AirnoteUi.devnetNotice(
+                    this,
+                    "Use the same recipient wallet on Solana Devnet to settle this Airnote."
+                ),
+                AirnoteUi.marginParams(this, top = 12, bottom = 10)
+            )
             root.addView(AirnoteUi.primaryButton(this, settlementActionLabel(payment)).apply {
                 setOnClickListener {
                     isEnabled = false
