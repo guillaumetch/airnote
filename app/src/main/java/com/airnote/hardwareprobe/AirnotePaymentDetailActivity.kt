@@ -45,7 +45,11 @@ class AirnotePaymentDetailActivity : AppCompatActivity() {
                 statusLabel(payment.status),
                 payment.status == PaymentStatus.SETTLED || payment.status == PaymentStatus.ACCEPTED_OFFLINE
             ),
-            AirnoteUi.marginParams(this, top = 8, bottom = 16)
+            AirnoteUi.marginParams(this, top = 8, bottom = 8)
+        )
+        root.addView(
+            AirnoteUi.networkBadge(this),
+            AirnoteUi.marginParams(this, bottom = 16)
         )
 
         root.addView(AirnoteUi.body(this, "", 14f).apply {
