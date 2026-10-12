@@ -49,13 +49,6 @@ class MainActivity : AppCompatActivity() {
                 marginStart = AirnoteUi.dp(this@MainActivity, 8)
             }
         )
-        brandRow.addView(AirnoteUi.body(this, "◔", 18f).apply {
-            setTextColor(AirnoteUi.color(AirnoteUi.AIR_DEEP))
-            setPadding(8, 0, 8, 0)
-        })
-        brandRow.addView(AirnoteUi.body(this, "⚙", 18f).apply {
-            setTextColor(AirnoteUi.color(AirnoteUi.AIR_DEEP))
-        })
         root.addView(brandRow)
         root.addView(
             AirnoteUi.body(this, "Money that moves with you. Online or offline.", 12.5f),
