@@ -134,7 +134,7 @@ class AirnotePaymentDetailActivity : AppCompatActivity() {
         }
 
         payment.protocolPayload?.let { payload ->
-            root.addView(AirnoteUi.secondaryButton(this, "Technical · Copy raw settlement payload").apply {
+            root.addView(AirnoteUi.secondaryButton(this, "Copy").apply {
                 setOnClickListener {
                     val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     clipboard.setPrimaryClip(ClipData.newPlainText("AIRNOTE settlement payload", payload))
@@ -142,21 +142,6 @@ class AirnotePaymentDetailActivity : AppCompatActivity() {
                 }
             })
         }
-
-        root.addView(AirnoteUi.body(this, "", 12f).apply {
-            text = buildString {
-                appendLine("TECHNICAL DETAILS")
-                appendLine("Airnote ID: ${payment.id}")
-                appendLine("Status: ${payment.status}")
-                appendLine("Retries: ${payment.retryCount}")
-                payment.counterparty?.let { appendLine("Recipient: $it") }
-                payment.settlementSignature?.let { appendLine("Transaction: $it") }
-                payment.errorCode?.let { appendLine("Last error: $it") }
-            }
-            textSize = 12f
-            setTextIsSelectable(true)
-            setPadding(0, 28, 0, 0)
-        })
 
         setContentView(ScrollView(this).apply { addView(root) })
     }
