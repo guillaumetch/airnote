@@ -14,7 +14,7 @@ object AirnoteBottomNav {
     fun attach(
         activity: Activity,
         content: android.view.View,
-        selected: Tab
+        selected: Tab?
     ): LinearLayout {
         val shell = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
