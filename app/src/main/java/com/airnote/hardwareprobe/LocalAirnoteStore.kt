@@ -10,7 +10,8 @@ enum class LocalAirnoteState {
     FUNDING,
     FUNDED_FINALIZED,
     READY_OFFLINE,
-    HANDOFF_AUTHORIZED
+    HANDOFF_AUTHORIZED,
+    REFUNDED
 }
 
 data class LocalAirnote(
@@ -69,8 +70,16 @@ class LocalAirnoteStore(context: Context) {
             .mapNotNull { (it as? String)?.let(::decode) }
             .sortedByDescending { it.createdAtUnixSeconds }
 
-    fun sendable(): List<LocalAirnote> =
-        all().filter { it.state in setOf(LocalAirnoteState.READY_OFFLINE, LocalAirnoteState.HANDOFF_AUTHORIZED) }
+    fun sendable(nowUnixSeconds: Long = System.currentTimeMillis() / 1000L): List<LocalAirnote> =
+        all().filter {
+            it.state in setOf(LocalAirnoteState.READY_OFFLINE, LocalAirnoteState.HANDOFF_AUTHORIZED) &&
+                !it.isExpired(nowUnixSeconds)
+        }
+
+    fun expiredUnsent(nowUnixSeconds: Long = System.currentTimeMillis() / 1000L): List<LocalAirnote> =
+        all().filter {
+            it.state == LocalAirnoteState.READY_OFFLINE && it.isExpired(nowUnixSeconds)
+        }
 
     fun latestIncomplete(): LocalAirnote? =
         all().firstOrNull { it.state !in setOf(LocalAirnoteState.READY_OFFLINE, LocalAirnoteState.HANDOFF_AUTHORIZED) }
@@ -114,6 +123,9 @@ class LocalAirnoteStore(context: Context) {
                 lastError = null
             )
         }
+
+    fun markRefunded(noteIdHex: String): LocalAirnote =
+        mutate(noteIdHex) { it.copy(state = LocalAirnoteState.REFUNDED, lastError = null) }
 
     fun markHandoffAuthorized(noteIdHex: String): LocalAirnote =
         mutate(noteIdHex) {
@@ -222,6 +234,13 @@ class LocalAirnoteStore(context: Context) {
             lastError = json.optNullableString("lastError")
         )
     }.getOrNull()
+
+    private fun LocalAirnote.isExpired(nowUnixSeconds: Long): Boolean {
+        val certificate = certificateJson ?: return false
+        return runCatching {
+            Gate04CertificateJson.parse(certificate).mintCore.expiresAtUnixSeconds <= nowUnixSeconds
+        }.getOrDefault(false)
+    }
 
     private fun parseFields(text: String): Map<String, String> =
         text.lineSequence()
