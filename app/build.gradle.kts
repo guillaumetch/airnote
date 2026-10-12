@@ -3,6 +3,24 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val stableKeystorePath = providers.environmentVariable("AIRNOTE_ANDROID_KEYSTORE_PATH").orNull
+val stableKeystorePassword = providers.environmentVariable("AIRNOTE_ANDROID_KEYSTORE_PASSWORD").orNull
+val stableKeyAlias = providers.environmentVariable("AIRNOTE_ANDROID_KEY_ALIAS").orNull
+val stableKeyPassword = providers.environmentVariable("AIRNOTE_ANDROID_KEY_PASSWORD").orNull
+val stableSigningValues = listOf(
+    stableKeystorePath,
+    stableKeystorePassword,
+    stableKeyAlias,
+    stableKeyPassword
+)
+val anyStableSigningConfigured = stableSigningValues.any { !it.isNullOrBlank() }
+val allStableSigningConfigured = stableSigningValues.all { !it.isNullOrBlank() }
+
+check(!anyStableSigningConfigured || allStableSigningConfigured) {
+    "Stable AIRNOTE signing is partially configured. Set AIRNOTE_ANDROID_KEYSTORE_PATH, " +
+        "AIRNOTE_ANDROID_KEYSTORE_PASSWORD, AIRNOTE_ANDROID_KEY_ALIAS, and AIRNOTE_ANDROID_KEY_PASSWORD together."
+}
+
 android {
     namespace = "com.airnote.hardwareprobe"
     compileSdk = 35
@@ -17,8 +35,22 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    val stableSigningConfig = if (allStableSigningConfigured) {
+        signingConfigs.create("airnoteStable") {
+            storeFile = file(requireNotNull(stableKeystorePath))
+            storePassword = requireNotNull(stableKeystorePassword)
+            keyAlias = requireNotNull(stableKeyAlias)
+            keyPassword = requireNotNull(stableKeyPassword)
+        }
+    } else {
+        null
+    }
+
     buildTypes {
-        release {
+        getByName("debug") {
+            stableSigningConfig?.let { signingConfig = it }
+        }
+        getByName("release") {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
