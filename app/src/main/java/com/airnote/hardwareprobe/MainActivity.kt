@@ -8,6 +8,8 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : AppCompatActivity() {
     private lateinit var localAirnoteStore: LocalAirnoteStore
@@ -235,15 +237,27 @@ class MainActivity : AppCompatActivity() {
             })
             nav.addView(item, LinearLayout.LayoutParams(0, AirnoteUi.dp(this, 46), 1f))
         }
+        ViewCompat.setOnApplyWindowInsetsListener(nav) { view, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.setPadding(
+                AirnoteUi.dp(this@MainActivity, 12),
+                AirnoteUi.dp(this@MainActivity, 5),
+                AirnoteUi.dp(this@MainActivity, 12),
+                AirnoteUi.dp(this@MainActivity, 8) + systemBars.bottom
+            )
+            insets
+        }
+
         shell.addView(
             nav,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                AirnoteUi.dp(this, 64)
+                LinearLayout.LayoutParams.WRAP_CONTENT
             )
         )
 
         setContentView(shell)
+        ViewCompat.requestApplyInsets(nav)
 
         refreshHome()
         AirnoteReconciliationScheduler.enqueue(this)
