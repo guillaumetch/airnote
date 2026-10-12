@@ -17,6 +17,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.airnote.protocol.SenderLifetimePolicy
 import com.solana.mobilewalletadapter.clientlib.ActivityResultSender
+import com.solana.mobilewalletadapter.clientlib.TransactionResult
 import kotlinx.coroutines.launch
 import java.io.File
 import java.time.Instant
@@ -26,8 +27,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var activityView: TextView
     private lateinit var localAirnoteStore: LocalAirnoteStore
     private lateinit var walletActivityResultSender: ActivityResultSender
+    private lateinit var skrStatusView: TextView
+    private lateinit var tenUsdcButton: Button
+    private lateinit var twentyFourHourButton: Button
     private var selectedAmountUsdc = 1
     private var selectedLifetimeSeconds = SenderLifetimePolicy.DEFAULT_SECONDS
+    private var skrHolder = false
+    private var verifiedSkrWalletBase58: String? = null
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -105,15 +111,33 @@ class MainActivity : AppCompatActivity() {
             setPadding(0, 0, 0, 12)
         })
 
+        root.addView(TextView(this).apply {
+            text = "SKR RESERVE+"
+            textSize = 16f
+            setPadding(0, 8, 0, 2)
+        })
+        skrStatusView = TextView(this).apply {
+            text = "Standard: up to 5 USDC / 6h. Verify a wallet holding liquid SKR to unlock 10 USDC / 24h."
+            textSize = 13f
+            setPadding(0, 0, 0, 8)
+        }
+        root.addView(skrStatusView)
+        root.addView(Button(this).apply {
+            text = "VERIFY SKR ACCESS"
+            setOnClickListener { verifySkrAccess(this) }
+        })
+
         val amountRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         listOf(1, 5, 10).forEach { amount ->
-            amountRow.addView(Button(this).apply {
-                text = "$" + amount
+            val amountButton = Button(this).apply {
+                text = if (amount == 10) "$10 • SKR+" else "$" + amount
                 setOnClickListener {
                     selectedAmountUsdc = amount
                     refreshCreatePreview()
                 }
-            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            }
+            if (amount == 10) tenUsdcButton = amountButton
+            amountRow.addView(amountButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         }
         root.addView(amountRow)
 
@@ -121,11 +145,18 @@ class MainActivity : AppCompatActivity() {
         val lifetimeRowTwo = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         SenderLifetimePolicy.presets.forEachIndexed { index, preset ->
             val button = Button(this).apply {
-                text = preset.label
+                text = if (preset.seconds == SkrAccessPolicy.RESERVE_PLUS_MAX_LIFETIME_SECONDS) {
+                    "24 hours • SKR+"
+                } else {
+                    preset.label
+                }
                 setOnClickListener {
                     selectedLifetimeSeconds = preset.seconds
                     refreshCreatePreview()
                 }
+            }
+            if (preset.seconds == SkrAccessPolicy.RESERVE_PLUS_MAX_LIFETIME_SECONDS) {
+                twentyFourHourButton = button
             }
             val row = if (index < 2) lifetimeRowOne else lifetimeRowTwo
             row.addView(button, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
@@ -147,6 +178,14 @@ class MainActivity : AppCompatActivity() {
                     SenderLifetimePolicy.fromMinutes(minutes)
                 }.getOrElse { error ->
                     Toast.makeText(this@MainActivity, error.message ?: "Invalid lifetime", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                if (lifetime.seconds > SkrAccessPolicy.STANDARD_MAX_LIFETIME_SECONDS && !skrHolder) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "SKR Reserve+ is required for lifetimes above 6 hours.",
+                        Toast.LENGTH_LONG
+                    ).show()
                     return@setOnClickListener
                 }
                 selectedLifetimeSeconds = lifetime.seconds
@@ -201,6 +240,7 @@ class MainActivity : AppCompatActivity() {
         })
 
         setContentView(ScrollView(this).apply { addView(root) })
+        refreshSkrAccessControls()
         refreshCreatePreview()
         refreshLocalActivity()
         AirnoteReconciliationScheduler.enqueue(this)
@@ -213,6 +253,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun createAndFund(button: Button) {
+        if (!SkrAccessPolicy.canCreate(selectedAmountUsdc, selectedLifetimeSeconds, skrHolder)) {
+            Toast.makeText(
+                this,
+                SkrAccessPolicy.denialMessage(selectedAmountUsdc, selectedLifetimeSeconds),
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
         button.isEnabled = false
         button.text = "CREATING STRONGBOX KEY…"
         val amount = selectedAmountUsdc
@@ -223,7 +272,16 @@ class MainActivity : AppCompatActivity() {
                 val material = NoteOwnerKeyManager(this@MainActivity).create()
                 val request = buildSenderMintRequest(material, amount, lifetimeSeconds)
                 persistMintRequest(request)
-                localAirnoteStore.create(material, amount, lifetimeSeconds)
+                localAirnoteStore.create(
+                    material = material,
+                    amountUsdc = amount,
+                    lifetimeSeconds = lifetimeSeconds,
+                    skrAccessWalletBase58 = if (SkrAccessPolicy.requiresReservePlus(amount, lifetimeSeconds)) {
+                        requireNotNull(verifiedSkrWalletBase58) { "SKR Reserve+ wallet verification is missing" }
+                    } else {
+                        null
+                    }
+                )
             }
             runOnUiThread {
                 result.onSuccess { note ->
@@ -300,12 +358,77 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun verifySkrAccess(button: Button) {
+        button.isEnabled = false
+        button.text = "CHECKING SKR…"
+        skrStatusView.text = "Opening wallet, then checking the official SKR mint on Solana mainnet…"
+
+        lifecycleScope.launch {
+            val result = runCatching {
+                when (val walletResult = AirnoteWalletAdapterFactory.create().connect(walletActivityResultSender)) {
+                    is TransactionResult.Success -> {
+                        val account = walletResult.authResult.accounts.firstOrNull()
+                            ?: error("wallet authorization returned no account")
+                        SkrAccessVerifier().check(account.publicKey)
+                    }
+                    is TransactionResult.NoWalletFound -> error(walletResult.message)
+                    is TransactionResult.Failure -> throw walletResult.e ?: Exception(walletResult.message)
+                }
+            }
+
+            result.onSuccess { access ->
+                skrHolder = access.isHolder
+                verifiedSkrWalletBase58 = access.walletBase58.takeIf { access.isHolder }
+                skrStatusView.text = if (access.isHolder) {
+                    buildString {
+                        appendLine("SKR HOLDER  ✓  •  RESERVE+ UNLOCKED")
+                        appendLine(access.displayBalance + " liquid SKR")
+                        append("Wallet " + access.walletBase58.take(6) + "…" + access.walletBase58.takeLast(6))
+                    }
+                } else {
+                    "No liquid SKR found for this wallet. Standard access remains 5 USDC / 6h."
+                }
+            }.onFailure { error ->
+                skrHolder = false
+                verifiedSkrWalletBase58 = null
+                skrStatusView.text = "SKR CHECK FAILED\n" + (error.message ?: error::class.java.simpleName)
+            }
+
+            refreshSkrAccessControls()
+            refreshCreatePreview()
+            button.text = "VERIFY SKR ACCESS"
+            button.isEnabled = true
+        }
+    }
+
+    private fun refreshSkrAccessControls() {
+        if (::tenUsdcButton.isInitialized) tenUsdcButton.isEnabled = skrHolder
+        if (::twentyFourHourButton.isInitialized) twentyFourHourButton.isEnabled = skrHolder
+
+        if (!skrHolder) {
+            if (selectedAmountUsdc > SkrAccessPolicy.STANDARD_MAX_AMOUNT_USDC) {
+                selectedAmountUsdc = SkrAccessPolicy.STANDARD_MAX_AMOUNT_USDC
+            }
+            if (selectedLifetimeSeconds > SkrAccessPolicy.STANDARD_MAX_LIFETIME_SECONDS) {
+                selectedLifetimeSeconds = SkrAccessPolicy.STANDARD_MAX_LIFETIME_SECONDS
+            }
+        }
+    }
+
     private fun refreshCreatePreview() {
         if (!::createPreviewView.isInitialized) return
         val lifetime = SenderLifetimePolicy.lifetime(selectedLifetimeSeconds)
         createPreviewView.text = buildString {
+            val reservePlus = SkrAccessPolicy.requiresReservePlus(selectedAmountUsdc, lifetime.seconds)
             appendLine(selectedAmountUsdc.toString() + " USDC • " + lifetime.label)
             appendLine("Offline exposure: " + lifetime.exposureLabel)
+            appendLine(
+                if (reservePlus) {
+                    if (skrHolder) "SKR Reserve+ access: UNLOCKED ✓" else "SKR Reserve+ access: REQUIRED"
+                } else {
+                    "Access tier: STANDARD"
+                }
+            )
             appendLine("Estimated expiry: " + Instant.now().plusSeconds(lifetime.seconds))
             append("Creation/funding requires connectivity. The two-scan handoff does not.")
         }
