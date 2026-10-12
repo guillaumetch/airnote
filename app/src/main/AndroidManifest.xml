@@ -11,6 +11,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AirnoteProbe">
         <activity
+            android:name=".CreateFundActivity"
+            android:exported="false" />
+        <activity
             android:name=".AirnoteProofActivity"
             android:exported="false" />
         <activity
