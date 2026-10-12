@@ -81,6 +81,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
 
         requestButton = AirnoteUi.primaryButton(this, "Show request QR · 1 of 2").apply {
             isEnabled = false
+            alpha = 0.38f
             setOnClickListener { generateRequest() }
         }
         root.addView(requestButton)
@@ -93,6 +94,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
 
         scanTransferButton = AirnoteUi.primaryButton(this, "Scan payment · 2 of 2").apply {
             isEnabled = false
+            alpha = 0.38f
             setOnClickListener {
                 transferScanner.launch(
                     ScanOptions()
@@ -107,6 +109,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
 
         openPaymentButton = AirnoteUi.primaryButton(this, "Open payment / Settle").apply {
             isEnabled = false
+            alpha = 0.38f
             setOnClickListener {
                 val id = acceptedPaymentId ?: return@setOnClickListener
                 startActivity(
@@ -128,8 +131,9 @@ class Gate04ReceiverActivity : AppCompatActivity() {
         }
         root.addView(status)
 
-        copyAcceptedButton = AirnoteUi.secondaryButton(this, "Technical · Copy settlement payload").apply {
+        copyAcceptedButton = AirnoteUi.compactButton(this, "Technical · Copy settlement payload").apply {
             isEnabled = false
+            alpha = 0.38f
             setOnClickListener {
                 val payload = acceptedPayload ?: return@setOnClickListener
                 val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -138,7 +142,11 @@ class Gate04ReceiverActivity : AppCompatActivity() {
         }
         root.addView(copyAcceptedButton)
 
-        setContentView(ScrollView(this).apply { addView(root) })
+        setContentView(ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
+            addView(root)
+        })
         restoreActiveRequest()
         renderWalletBinding()
     }
@@ -197,6 +205,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
 
             selectWalletButton.isEnabled = true
             requestButton.isEnabled = walletBindingStore.current() != null
+            requestButton.alpha = if (requestButton.isEnabled) 1f else 0.38f
         }
     }
 
@@ -212,6 +221,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
 
         selectWalletButton.isEnabled = controls.selectWalletEnabled
         requestButton.isEnabled = controls.requestEnabled
+        requestButton.alpha = if (controls.requestEnabled) 1f else 0.38f
         requestButton.text = controls.requestLabel
 
         if (binding == null) {
@@ -262,6 +272,8 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             requestButton.isEnabled = false
             qr.setImageBitmap(QrSupport.render(encoded))
             scanTransferButton.isEnabled = true
+        scanTransferButton.alpha = 1f
+            scanTransferButton.alpha = 1f
             runCatching {
                 AirnoteProofJournal(this).record(
                     type = AirnoteProofEventType.RECEIVER_REQUEST_QR_READY,
@@ -285,6 +297,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             currentRequest = null
             handoffSessionId = null
             scanTransferButton.isEnabled = false
+            scanTransferButton.alpha = 0.38f
             selectWalletButton.isEnabled = true
             requestButton.isEnabled = walletBindingStore.current() != null
             phase.text = "SCAN 1 OF 2  •  CREATE YOUR REQUEST"
@@ -376,8 +389,11 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             acceptedPayload = scanned.trim()
             acceptedPaymentId = commitmentHex
             copyAcceptedButton.isEnabled = true
+            copyAcceptedButton.alpha = 1f
             openPaymentButton.isEnabled = true
+            openPaymentButton.alpha = 1f
             scanTransferButton.isEnabled = false
+            scanTransferButton.alpha = 0.38f
             qr.setImageDrawable(null)
             phase.text = "OFFLINE HANDOFF COMPLETE  ✓"
             renderWalletBinding()
