@@ -1,387 +1,426 @@
 package com.airnote.hardwareprobe
 
-import android.Manifest
 import android.content.Intent
-import android.os.Build
+import android.net.Uri
 import android.os.Bundle
-import android.text.InputType
 import android.view.Gravity
-import android.widget.Button
-import android.widget.EditText
+import android.view.View
+import android.view.ViewOutlineProvider
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import com.airnote.protocol.SenderLifetimePolicy
 import com.solana.mobilewalletadapter.clientlib.ActivityResultSender
 import kotlinx.coroutines.launch
-import java.io.File
-import java.time.Instant
 
 class MainActivity : AppCompatActivity() {
-    private lateinit var createPreviewView: TextView
-    private lateinit var activityView: TextView
     private lateinit var localAirnoteStore: LocalAirnoteStore
+    private lateinit var heroReserveAmountView: TextView
+    private lateinit var heroReserveMetaView: TextView
+    private lateinit var recentActivityContainer: LinearLayout
+    private lateinit var expiredRefundContainer: LinearLayout
     private lateinit var walletActivityResultSender: ActivityResultSender
-    private var selectedAmountUsdc = 1
-    private var selectedLifetimeSeconds = SenderLifetimePolicy.DEFAULT_SECONDS
-
-    private val notificationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        Toast.makeText(
-            this,
-            if (granted) "Settlement alerts enabled" else "Settlement alerts remain off",
-            Toast.LENGTH_SHORT
-        ).show()
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        walletActivityResultSender = ActivityResultSender(this)
         localAirnoteStore = LocalAirnoteStore(this)
+        walletActivityResultSender = ActivityResultSender(this)
         localAirnoteStore.importLegacyMintRequests(getExternalFilesDir(null)?.listFiles().orEmpty())
-        title = "AIRNOTE"
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(36, 36, 36, 56)
+            setPadding(
+                AirnoteUi.dp(this@MainActivity, 22),
+                AirnoteUi.dp(this@MainActivity, 18),
+                AirnoteUi.dp(this@MainActivity, 22),
+                AirnoteUi.dp(this@MainActivity, 28)
+            )
+            setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
         }
+        AirnoteUi.applyTopInset(root)
 
-        root.addView(TextView(this).apply {
-            text = "AIRNOTE"
-            textSize = 32f
-            gravity = Gravity.CENTER_HORIZONTAL
-        })
-        root.addView(TextView(this).apply {
-            text = "Offline USDC on Solana"
-            textSize = 16f
-            gravity = Gravity.CENTER_HORIZONTAL
-        })
-        root.addView(TextView(this).apply {
-            text = "Prepare value while online. Exchange with two scans offline. Settle when connectivity returns."
-            textSize = 14f
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, 6, 0, 28)
-        })
+        val brandRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        brandRow.addView(
+            AirnoteMarkView(this),
+            LinearLayout.LayoutParams(AirnoteUi.dp(this, 38), AirnoteUi.dp(this, 32))
+        )
+        brandRow.addView(
+            AirnoteUi.title(this, "AIRNOTE", 19f),
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginStart = AirnoteUi.dp(this@MainActivity, 8)
+            }
+        )
+        root.addView(brandRow)
+        root.addView(
+            AirnoteUi.body(this, "Money that moves with you. Online or offline.", 12.5f),
+            AirnoteUi.marginParams(this, top = 4, bottom = 12)
+        )
 
-        root.addView(TextView(this).apply {
-            text = "PAY OFFLINE"
-            textSize = 13f
-        })
-        root.addView(Button(this).apply {
-            text = "SEND AIRNOTE"
-            setOnClickListener { startActivity(Intent(this@MainActivity, Gate04SenderActivity::class.java)) }
-        })
-        root.addView(Button(this).apply {
-            text = "RECEIVE AIRNOTE"
-            setOnClickListener { startActivity(Intent(this@MainActivity, Gate04ReceiverActivity::class.java)) }
-        })
-        root.addView(Button(this).apply {
-            text = "ACTIVITY"
+        val heroFrame = FrameLayout(this).apply {
+            background = AirnoteUi.rounded(this@MainActivity, "#FFFFFF", 24, "#D3E3EF")
+            clipToOutline = true
+            outlineProvider = ViewOutlineProvider.BACKGROUND
+        }
+        heroFrame.addView(
+            ImageView(this).apply {
+                setImageResource(R.drawable.airnote_hero)
+                scaleType = ImageView.ScaleType.CENTER_CROP
+            },
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                AirnoteUi.dp(this, 178)
+            )
+        )
+        val hero = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(
+                AirnoteUi.dp(this@MainActivity, 18),
+                AirnoteUi.dp(this@MainActivity, 18),
+                AirnoteUi.dp(this@MainActivity, 18),
+                AirnoteUi.dp(this@MainActivity, 16)
+            )
+        }
+        hero.addView(AirnoteUi.sectionLabel(this, "USDC Balance"))
+        heroReserveAmountView = AirnoteUi.title(this, "0.00 USDC", 31f)
+        hero.addView(heroReserveAmountView, AirnoteUi.marginParams(this, top = 4))
+        hero.addView(AirnoteUi.statusPill(this, "●  Ready Offline", true), AirnoteUi.marginParams(this, top = 7))
+        heroReserveMetaView = AirnoteUi.body(this, "Create an Airnote to prepare funds for offline use.", 11.5f)
+        hero.addView(heroReserveMetaView, AirnoteUi.marginParams(this, top = 7))
+        heroFrame.addView(
+            hero,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+        heroFrame.addView(
+            View(this).apply {
+                background = AirnoteUi.rounded(this@MainActivity, "#00FFFFFF", 24, "#D3E3EF")
+            },
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+        root.addView(heroFrame, AirnoteUi.marginParams(this, height = AirnoteUi.dp(this, 178), bottom = 12))
+
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            weightSum = 4f
+        }
+        val tiles = listOf(
+            Triple("＋", Pair("Create & Fund", "Add USDC\nto your AirNote"), CreateFundActivity::class.java),
+            Triple("➤", Pair("Send", "Pay anyone\noffline or online"), Gate04SenderActivity::class.java),
+            Triple("⌗", Pair("Receive", "Show your code\nor share a link"), Gate04ReceiverActivity::class.java),
+            Triple("▤", Pair("Activity", "View your\ntransactions"), AirnoteHistoryActivity::class.java)
+        )
+        tiles.forEach { (icon, copy, target) ->
+            val tile = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(
+                    AirnoteUi.dp(this@MainActivity, 4),
+                    AirnoteUi.dp(this@MainActivity, 10),
+                    AirnoteUi.dp(this@MainActivity, 4),
+                    AirnoteUi.dp(this@MainActivity, 10)
+                )
+                background = AirnoteUi.rounded(this@MainActivity, "#FCFEFF", 18, "#DDE7F0")
+                elevation = AirnoteUi.dp(this@MainActivity, 1).toFloat()
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { startActivity(Intent(this@MainActivity, target)) }
+            }
+            tile.addView(AirnoteUi.iconBubble(this, icon, 40))
+            tile.addView(TextView(this).apply {
+                text = copy.first
+                textSize = 10.5f
+                gravity = Gravity.CENTER
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(AirnoteUi.color(AirnoteUi.NIGHT))
+            }, AirnoteUi.marginParams(this, top = 4))
+            tile.addView(TextView(this).apply {
+                text = copy.second
+                textSize = 8.5f
+                gravity = Gravity.CENTER
+                setTextColor(AirnoteUi.color(AirnoteUi.SLATE))
+            }, AirnoteUi.marginParams(this, top = 2))
+            actions.addView(
+                tile,
+                LinearLayout.LayoutParams(0, AirnoteUi.dp(this, 106), 1f).apply {
+                    marginStart = AirnoteUi.dp(this@MainActivity, 3)
+                    marginEnd = AirnoteUi.dp(this@MainActivity, 3)
+                }
+            )
+        }
+        root.addView(actions, AirnoteUi.marginParams(this, bottom = 12))
+
+        val readyCard = AirnoteUi.glassCard(this, 14)
+        val readyRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        readyRow.addView(AirnoteUi.iconBubble(this, "◌", 38))
+        val readyCopy = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        readyCopy.addView(AirnoteUi.title(this, "Ready Offline", 15f))
+        readyCopy.addView(AirnoteUi.body(this, "Two scans. No internet required.", 12f))
+        readyRow.addView(
+            readyCopy,
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginStart = AirnoteUi.dp(this@MainActivity, 10)
+            }
+        )
+        readyCard.addView(readyRow)
+        root.addView(readyCard, AirnoteUi.marginParams(this, bottom = 12))
+
+        expiredRefundContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        root.addView(expiredRefundContainer, AirnoteUi.marginParams(this, bottom = 18))
+
+        val recentHeader = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        recentHeader.addView(
+            AirnoteUi.title(this, "Recent Activity", 18f),
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        )
+        recentHeader.addView(AirnoteUi.body(this, "See all", 12f).apply {
+            setTextColor(AirnoteUi.color(AirnoteUi.AIR))
             setOnClickListener { startActivity(Intent(this@MainActivity, AirnoteHistoryActivity::class.java)) }
         })
+        root.addView(recentHeader, AirnoteUi.marginParams(this, bottom = 8))
 
-        if (Build.VERSION.SDK_INT >= 33 && !AirnoteNotifications.canNotify(this)) {
-            root.addView(Button(this).apply {
-                text = "ENABLE SETTLEMENT ALERTS"
+        recentActivityContainer = AirnoteUi.glassCard(this, 12)
+        root.addView(recentActivityContainer)
+
+        val devnetCard = AirnoteUi.glassCard(this, 14).apply {
+            background = AirnoteUi.rounded(this@MainActivity, "#F8FCFF", 20, "#D7E5F1")
+        }
+        devnetCard.addView(AirnoteUi.title(this, "Testing on Devnet", 15f))
+        devnetCard.addView(
+            AirnoteUi.body(
+                this,
+                "Need test funds? Get Devnet SOL for fees and Circle Devnet USDC for AIRNOTE funding.",
+                11.5f
+            ),
+            AirnoteUi.marginParams(this, top = 4, bottom = 8)
+        )
+        val faucetRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        faucetRow.addView(
+            AirnoteUi.secondaryButton(this, "Get Devnet SOL").apply {
                 setOnClickListener {
-                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse("https://faucet.solana.com/"))
+                    )
                 }
-            })
-        }
-
-        root.addView(TextView(this).apply {
-            text = "CREATE & FUND AIRNOTE"
-            textSize = 20f
-            setPadding(0, 30, 0, 4)
-        })
-        root.addView(TextView(this).apply {
-            text = "Choose value and lifetime. Your wallet approves one USDC funding transaction; AIRNOTE waits for finality and backing certification automatically."
-            textSize = 14f
-            setPadding(0, 0, 0, 12)
-        })
-
-        val amountRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        listOf(1, 5, 10).forEach { amount ->
-            amountRow.addView(Button(this).apply {
-                text = "$" + amount
+            },
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginEnd = AirnoteUi.dp(this@MainActivity, 4)
+            }
+        )
+        faucetRow.addView(
+            AirnoteUi.secondaryButton(this, "Get Devnet USDC").apply {
                 setOnClickListener {
-                    selectedAmountUsdc = amount
-                    refreshCreatePreview()
+                    startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse("https://faucet.circle.com/"))
+                    )
                 }
-            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        }
-        root.addView(amountRow)
-
-        val lifetimeRowOne = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val lifetimeRowTwo = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        SenderLifetimePolicy.presets.forEachIndexed { index, preset ->
-            val button = Button(this).apply {
-                text = preset.label
-                setOnClickListener {
-                    selectedLifetimeSeconds = preset.seconds
-                    refreshCreatePreview()
-                }
+            },
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginStart = AirnoteUi.dp(this@MainActivity, 4)
             }
-            val row = if (index < 2) lifetimeRowOne else lifetimeRowTwo
-            row.addView(button, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        )
+        devnetCard.addView(faucetRow)
+        root.addView(devnetCard, AirnoteUi.marginParams(this, top = 12))
+
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
+            addView(root)
         }
-        root.addView(lifetimeRowOne)
-        root.addView(lifetimeRowTwo)
 
-        val customMinutes = EditText(this).apply {
-            hint = "Custom minutes (5–1440)"
-            inputType = InputType.TYPE_CLASS_NUMBER
-        }
-        root.addView(customMinutes)
-        root.addView(Button(this).apply {
-            text = "USE CUSTOM LIFETIME"
-            setOnClickListener {
-                val minutes = customMinutes.text.toString().toLongOrNull()
-                val lifetime = runCatching {
-                    requireNotNull(minutes) { "Enter a number of minutes" }
-                    SenderLifetimePolicy.fromMinutes(minutes)
-                }.getOrElse { error ->
-                    Toast.makeText(this@MainActivity, error.message ?: "Invalid lifetime", Toast.LENGTH_LONG).show()
-                    return@setOnClickListener
-                }
-                selectedLifetimeSeconds = lifetime.seconds
-                refreshCreatePreview()
-            }
-        })
+        setContentView(
+            AirnoteBottomNav.attach(
+                this,
+                scroll,
+                AirnoteBottomNav.Tab.HOME
+            )
+        )
 
-        createPreviewView = TextView(this).apply {
-            textSize = 15f
-            setPadding(0, 12, 0, 12)
-        }
-        root.addView(createPreviewView)
-
-        val createAndFund = Button(this).apply {
-            text = "CREATE & FUND AIRNOTE"
-            setOnClickListener { createAndFund(this) }
-        }
-        root.addView(createAndFund)
-
-        val continueButton = Button(this).apply {
-            text = "CONTINUE LATEST AIRNOTE"
-            setOnClickListener {
-                val note = localAirnoteStore.latestIncomplete()
-                if (note == null) {
-                    Toast.makeText(this@MainActivity, "No Airnote is waiting for funding or certification.", Toast.LENGTH_LONG).show()
-                } else {
-                    fundOrCertify(note.noteIdHex, this)
-                }
-            }
-        }
-        root.addView(continueButton)
-
-        root.addView(TextView(this).apply {
-            text = "LOCAL AIRNOTES"
-            textSize = 20f
-            setPadding(0, 30, 0, 4)
-        })
-        activityView = TextView(this).apply {
-            textSize = 14f
-            setPadding(0, 8, 0, 12)
-        }
-        root.addView(activityView)
-
-        root.addView(Button(this).apply {
-            text = "REFRESH"
-            setOnClickListener { refreshLocalActivity() }
-        })
-
-        root.addView(Button(this).apply {
-            text = "DEVELOPER TOOLS"
-            setOnClickListener { startActivity(Intent(this@MainActivity, DeveloperToolsActivity::class.java)) }
-        })
-
-        setContentView(ScrollView(this).apply { addView(root) })
-        refreshCreatePreview()
-        refreshLocalActivity()
+        refreshHome()
         AirnoteReconciliationScheduler.enqueue(this)
     }
 
     override fun onResume() {
         super.onResume()
-        if (::activityView.isInitialized) refreshLocalActivity()
+        if (::recentActivityContainer.isInitialized) refreshHome()
         AirnoteReconciliationScheduler.enqueue(this)
     }
 
-    private fun createAndFund(button: Button) {
-        button.isEnabled = false
-        button.text = "CREATING STRONGBOX KEY…"
-        val amount = selectedAmountUsdc
-        val lifetimeSeconds = selectedLifetimeSeconds
+    private fun refreshHome() {
+        val notes = localAirnoteStore.all()
+        val readyNotes = localAirnoteStore.sendable()
+            .filter { it.state == LocalAirnoteState.READY_OFFLINE }
+        val expiredUnsent = localAirnoteStore.expiredUnsent()
+        val readyAmount = readyNotes.sumOf { it.amountUsdc }
 
-        Thread {
-            val result = runCatching {
-                val material = NoteOwnerKeyManager(this@MainActivity).create()
-                val request = buildSenderMintRequest(material, amount, lifetimeSeconds)
-                persistMintRequest(request)
-                localAirnoteStore.create(material, amount, lifetimeSeconds)
-            }
-            runOnUiThread {
-                result.onSuccess { note ->
-                    refreshLocalActivity()
-                    button.text = "OPENING WALLET…"
-                    fundOrCertify(note.noteIdHex, button)
-                }.onFailure { error ->
-                    button.text = "CREATE & FUND AIRNOTE"
-                    button.isEnabled = true
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Create failed: " + (error.message ?: error::class.java.simpleName),
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            }
-        }.start()
-    }
-
-    private fun fundOrCertify(noteIdHex: String, button: Button) {
-        val idleLabel = if (button.text == "CONTINUE LATEST AIRNOTE") {
-            "CONTINUE LATEST AIRNOTE"
-        } else {
-            "CREATE & FUND AIRNOTE"
-        }
-        button.isEnabled = false
-        val before = localAirnoteStore.get(noteIdHex)
-        button.text = when (before?.state) {
-            LocalAirnoteState.FUNDED_FINALIZED -> "CERTIFYING BACKING…"
-            LocalAirnoteState.FUNDING -> "CHECKING FUNDING…"
-            else -> "OPENING WALLET…"
+        heroReserveAmountView.text = String.format("%.2f USDC", readyAmount.toDouble())
+        heroReserveMetaView.text = when {
+            readyNotes.isEmpty() -> "No prepared Airnotes yet."
+            readyNotes.size == 1 -> "1 Airnote ready to move offline."
+            else -> readyNotes.size.toString() + " Airnotes ready to move offline."
         }
 
-        lifecycleScope.launch {
-            val result = runCatching {
-                AirnoteFundingCoordinator(localAirnoteStore)
-                    .createReadyOffline(noteIdHex, walletActivityResultSender)
+        expiredRefundContainer.removeAllViews()
+        expiredUnsent.forEach { note ->
+            val card = AirnoteUi.glassCard(this, 14).apply {
+                background = AirnoteUi.rounded(this@MainActivity, "#FFF8EA", 20, "#F0D7A0")
             }
-
-            result.onSuccess { ready ->
-                Toast.makeText(
-                    this@MainActivity,
-                    ready.note.amountUsdc.toString() + " USDC AIRNOTE READY OFFLINE",
-                    Toast.LENGTH_LONG
-                ).show()
-                activityView.text = buildString {
-                    appendLine("READY OFFLINE  ✓")
-                    appendLine(ready.note.amountUsdc.toString() + " USDC")
-                    appendLine("Note " + ready.note.noteIdHex.take(12) + "…")
-                    appendLine("Funding finalized at slot " + ready.finalizedSlot)
-                    append("Open SEND AIRNOTE — no certificate file import is needed.")
-                }
-            }.onFailure { error ->
-                val current = localAirnoteStore.get(noteIdHex)
-                val message = when (error) {
-                    is AirnoteFundingCoordinator.CertificationPendingException ->
-                        "Funding is FINALIZED. Certification is pending; retry will not fund again."
-                    else -> error.message ?: error::class.java.simpleName
-                }
-                Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
-                if (current != null) {
-                    activityView.text = buildString {
-                        appendLine(current.amountUsdc.toString() + " USDC • " + current.state)
-                        appendLine("Note " + current.noteIdHex.take(12) + "…")
-                        current.fundingSignature?.let { appendLine("Funding tx: " + it) }
-                        current.lastError?.let { append("Last status: " + it) }
+            card.addView(AirnoteUi.title(this, "Expired Airnote", 15f))
+            card.addView(
+                AirnoteUi.body(
+                    this,
+                    note.amountUsdc.toString() + " USDC · Never handed off\nFunds are still safe on Solana.",
+                    11.5f
+                ),
+                AirnoteUi.marginParams(this, top = 4, bottom = 8)
+            )
+            card.addView(
+                AirnoteUi.primaryButton(this, "Refund " + note.amountUsdc + " USDC").apply {
+                    setOnClickListener {
+                        isEnabled = false
+                        text = "Opening funder wallet…"
+                        lifecycleScope.launch {
+                            val result = runCatching {
+                                AirnoteRefundCoordinator(localAirnoteStore)
+                                    .refund(note.noteIdHex, walletActivityResultSender)
+                            }
+                            result.onSuccess { refunded ->
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    refunded.note.amountUsdc.toString() + " USDC refunded on Devnet",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }.onFailure { error ->
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    refundErrorCopy(error),
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                            refreshHome()
+                        }
                     }
                 }
-            }
-
-            button.text = idleLabel
-            button.isEnabled = true
-            refreshLocalActivity()
+            )
+            expiredRefundContainer.addView(card, AirnoteUi.marginParams(this, bottom = 8))
         }
-    }
 
-    private fun refreshCreatePreview() {
-        if (!::createPreviewView.isInitialized) return
-        val lifetime = SenderLifetimePolicy.lifetime(selectedLifetimeSeconds)
-        createPreviewView.text = buildString {
-            appendLine(selectedAmountUsdc.toString() + " USDC • " + lifetime.label)
-            appendLine("Offline exposure: " + lifetime.exposureLabel)
-            appendLine("Estimated expiry: " + Instant.now().plusSeconds(lifetime.seconds))
-            append("Creation/funding requires connectivity. The two-scan handoff does not.")
-        }
-    }
-
-    private fun refreshLocalActivity() {
-        if (!::activityView.isInitialized) return
-
-        val notes = localAirnoteStore.all()
-        val prepared = notes.count { it.state == LocalAirnoteState.PREPARED }
-        val funding = notes.count { it.state == LocalAirnoteState.FUNDING }
-        val certificationPending = notes.count { it.state == LocalAirnoteState.FUNDED_FINALIZED }
-        val ready = notes.count { it.state == LocalAirnoteState.READY_OFFLINE }
-        val handedOff = notes.count { it.state == LocalAirnoteState.HANDOFF_AUTHORIZED }
-
+        recentActivityContainer.removeAllViews()
         val paymentStore = AirnotePaymentStore(this)
         paymentStore.expireDue()
         val payments = paymentStore.all()
-        val pendingSettlement = payments.count {
-            it.status in setOf(
-                PaymentStatus.ACCEPTED_OFFLINE,
-                PaymentStatus.PENDING,
-                PaymentStatus.SETTLING,
-                PaymentStatus.FAILED_RETRYABLE
-            )
-        }
-        val settled = payments.count { it.status == PaymentStatus.SETTLED }
+            .sortedByDescending { it.createdAtUnixSeconds }
+            .take(3)
 
-        activityView.text = buildString {
-            appendLine("Ready offline: " + ready)
-            appendLine("Prepared: " + prepared)
-            appendLine("Funding / reconciling: " + funding)
-            appendLine("Certification pending: " + certificationPending)
-            appendLine("Handoff authorized: " + handedOff)
-            appendLine()
-            appendLine("Received waiting to settle: " + pendingSettlement)
-            appendLine("Settled: " + settled)
-            notes.firstOrNull()?.let {
-                appendLine()
-                appendLine("Latest: " + it.amountUsdc + " USDC • " + it.state)
-                append("Note " + it.noteIdHex.take(12) + "…")
+        if (payments.isEmpty() && notes.isEmpty()) {
+            recentActivityContainer.addView(
+                AirnoteUi.body(this, "No activity yet. Create your first Airnote.", 13f)
+            )
+            return
+        }
+
+        payments.forEachIndexed { index, payment ->
+            if (index > 0) {
+                recentActivityContainer.addView(
+                    android.view.View(this).apply {
+                        setBackgroundColor(AirnoteUi.color(AirnoteUi.MIST))
+                    },
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        AirnoteUi.dp(this, 1)
+                    ).apply {
+                        topMargin = AirnoteUi.dp(this@MainActivity, 8)
+                        bottomMargin = AirnoteUi.dp(this@MainActivity, 8)
+                    }
+                )
+            }
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            val direction = if (payment.direction == PaymentDirection.RECEIVED) "Received" else "Sent"
+            left.addView(AirnoteUi.title(this, direction, 14f))
+            left.addView(AirnoteUi.body(this, statusLabel(payment.status), 11f))
+            row.addView(
+                left,
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            )
+            row.addView(
+                AirnoteUi.title(
+                    this,
+                    String.format("%.2f USDC", payment.amountBaseUnits / 1_000_000.0),
+                    14f
+                )
+            )
+            recentActivityContainer.addView(row)
+        }
+
+        if (payments.isEmpty()) {
+            notes.take(3).forEach { note ->
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                }
+                val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                left.addView(AirnoteUi.title(this, note.amountUsdc.toString() + " USDC Airnote", 14f))
+                left.addView(
+                    AirnoteUi.body(
+                        this,
+                        note.state.name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() },
+                        11f
+                    )
+                )
+                row.addView(
+                    left,
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                )
+                recentActivityContainer.addView(row)
             }
         }
     }
 
-    private fun buildSenderMintRequest(
-        material: NoteOwnerKeyManager.Material,
-        amountUsdc: Int,
-        lifetimeSeconds: Long
-    ): String {
-        val lifetime = SenderLifetimePolicy.lifetime(lifetimeSeconds)
-        val createdAt = Instant.now()
-        return buildString {
-            appendLine("AIRNOTE — SENDER MINT REQUEST")
-            appendLine()
-            appendLine("VERSION=1")
-            appendLine("CREATED_AT=" + createdAt)
-            appendLine("AMOUNT_USDC=" + amountUsdc)
-            appendLine("LIFETIME_SECONDS=" + lifetime.seconds)
-            appendLine("LIFETIME_LABEL=" + lifetime.label)
-            appendLine("OFFLINE_EXPOSURE=" + lifetime.exposureLabel)
-            appendLine("ESTIMATED_EXPIRES_AT=" + createdAt.plusSeconds(lifetime.seconds))
-            appendLine("MINT_LIFETIME_ARGUMENT=--lifetime-seconds " + lifetime.seconds)
-            appendLine()
-            append(material.report())
-            appendLine()
-            appendLine("MINT_STATUS=STRONGBOX_KEY_READY_FUNDING_REQUIRED")
-            appendLine("Final expiry is derived from Solana chain time when funding succeeds.")
-        }
+    private fun refundErrorCopy(error: Throwable): String = when (error) {
+        is AirnoteRefundCoordinator.WalletUnavailableException ->
+            "No compatible Solana wallet is available."
+        is AirnoteRefundCoordinator.WalletSubmissionException ->
+            "Refund failed. Use the original funding wallet on Solana Devnet."
+        is AirnoteSolanaRpc.FinalizationTimeoutException ->
+            "Refund was submitted but is still finalizing. Check again before retrying."
+        is AirnoteSolanaRpc.RpcException ->
+            "Solana Devnet is unavailable right now. Your USDC remains locked safely in the Airnote vault."
+        else -> error.message ?: "Refund could not complete."
     }
 
-    private fun persistMintRequest(request: String): File {
-        val noteId = Regex("NOTE_ID_HEX=([0-9a-f]{64})")
-            .find(request)?.groupValues?.get(1) ?: "unknown"
-        return File(getExternalFilesDir(null), "airnote-mint-request-" + noteId + ".txt").apply {
-            writeText(request)
-        }
+    private fun statusLabel(status: PaymentStatus): String = when (status) {
+        PaymentStatus.CREATED -> "Created"
+        PaymentStatus.ACCEPTED_OFFLINE -> "Received offline"
+        PaymentStatus.PENDING -> "Waiting to settle"
+        PaymentStatus.SETTLING -> "Settling"
+        PaymentStatus.SETTLED -> "Settled"
+        PaymentStatus.FAILED_RETRYABLE -> "Needs retry"
+        PaymentStatus.REJECTED -> "Rejected"
+        PaymentStatus.EXPIRED -> "Expired"
     }
 }

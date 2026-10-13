@@ -53,83 +53,114 @@ class Gate04SenderActivity : AppCompatActivity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(32, 32, 32, 48)
+            setPadding(AirnoteUi.dp(this@Gate04SenderActivity, 24), AirnoteUi.dp(this@Gate04SenderActivity, 28), AirnoteUi.dp(this@Gate04SenderActivity, 24), AirnoteUi.dp(this@Gate04SenderActivity, 48))
+            setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
         }
-        root.addView(TextView(this).apply {
-            text = "SEND AIRNOTE"
-            textSize = 28f
-            gravity = Gravity.CENTER_HORIZONTAL
-        })
-        root.addView(TextView(this).apply {
-            text = "Two scans. No internet required."
-            textSize = 16f
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, 4, 0, 24)
-        })
-
-        phase = TextView(this).apply {
-            text = "CHOOSE A READY AIRNOTE"
-            textSize = 18f
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, 8, 0, 20)
+        AirnoteUi.applyTopInset(root)
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
-        root.addView(phase)
-
-        root.addView(TextView(this).apply {
-            text = "YOUR OFFLINE AIRNOTES"
-            textSize = 14f
+        top.addView(AirnoteUi.body(this, "‹", 28f).apply {
+            setTextColor(AirnoteUi.color(AirnoteUi.AIR_DEEP))
+            setPadding(0, 0, AirnoteUi.dp(this@Gate04SenderActivity, 8), 0)
+            setOnClickListener { finish() }
         })
+        top.addView(AirnoteUi.title(this, "Send", 26f))
+        root.addView(top)
+        root.addView(AirnoteUi.body(this, "Pay anyone with a two-scan offline handoff.", 13f), AirnoteUi.marginParams(this, top = 3, bottom = 12))
+
+        val steps = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        steps.addView(AirnoteUi.statusPill(this, "1  Scan request", false), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        steps.addView(AirnoteUi.body(this, "  →  ", 13f))
+        steps.addView(AirnoteUi.statusPill(this, "2  Show payment", false), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        root.addView(steps, AirnoteUi.marginParams(this, bottom = 14))
+
+        val paymentCard = AirnoteUi.glassCard(this, 16)
+        val paymentHeader = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        paymentHeader.addView(AirnoteUi.iconBubble(this, "➤", 42))
+        val paymentCopy = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        paymentCopy.addView(AirnoteUi.title(this, "Send", 17f))
+        paymentCopy.addView(AirnoteUi.body(this, "Send USDC, online or offline.", 11.5f))
+        paymentHeader.addView(paymentCopy, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+            marginStart = AirnoteUi.dp(this@Gate04SenderActivity, 10)
+        })
+        paymentCard.addView(paymentHeader)
+
+        phase = AirnoteUi.statusPill(this, "Choose a Ready Offline Airnote", false)
+        paymentCard.addView(phase, AirnoteUi.marginParams(this, top = 12, bottom = 12))
+
+        paymentCard.addView(AirnoteUi.sectionLabel(this, "Ready Offline"))
         localNotesContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, 6, 0, 12)
+            setPadding(0, 6, 0, 8)
         }
-        root.addView(localNotesContainer)
+        paymentCard.addView(localNotesContainer)
 
-        root.addView(Button(this).apply {
-            text = "IMPORT CERTIFICATE / RECOVERY"
+        val recoveryButton = AirnoteUi.compactButton(this, "Recovery import").apply {
+            alpha = 0.55f
             setOnClickListener { openCertificate.launch(arrayOf("application/json", "text/plain", "*/*")) }
-        })
+        }
 
-        scanRequestButton = Button(this).apply {
-            text = "SCAN REQUEST — 1 OF 2"
+        scanRequestButton = AirnoteUi.primaryButton(this, "Scan request · 1 of 2").apply {
             isEnabled = false
+            alpha = 0.38f
             setOnClickListener {
                 requestScanner.launch(
                     ScanOptions()
                         .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
                         .setPrompt("Scan 1 of 2 • receiver request")
                         .setBeepEnabled(false)
-                        .setOrientationLocked(false)
+                        .setCaptureActivity(PortraitCaptureActivity::class.java)
+                        .setOrientationLocked(true)
                 )
             }
         }
-        root.addView(scanRequestButton)
+        paymentCard.addView(scanRequestButton, AirnoteUi.marginParams(this, top = 8))
 
         qr = ImageView(this).apply {
             adjustViewBounds = true
             setPadding(0, 24, 0, 24)
         }
-        root.addView(qr)
+        paymentCard.addView(qr)
 
-        status = TextView(this).apply {
-            text = "Choose a READY OFFLINE Airnote. File import is recovery-only."
-            textSize = 15f
+        status = AirnoteUi.body(this, "Choose a Ready Offline Airnote to begin.", 13f).apply {
             setTextIsSelectable(true)
+            setPadding(AirnoteUi.dp(this@Gate04SenderActivity, 16), AirnoteUi.dp(this@Gate04SenderActivity, 16), AirnoteUi.dp(this@Gate04SenderActivity, 16), AirnoteUi.dp(this@Gate04SenderActivity, 16))
+            background = AirnoteUi.rounded(this@Gate04SenderActivity, "#F8FCFF", 20, "#DDE7F0")
         }
-        root.addView(status)
+        paymentCard.addView(status, AirnoteUi.marginParams(this, top = 10))
+        root.addView(paymentCard)
 
-        copyTransferButton = Button(this).apply {
-            text = "TECHNICAL • COPY SIGNED PAYLOAD"
+        copyTransferButton = AirnoteUi.compactButton(this, "Technical · Copy signed payload").apply {
             isEnabled = false
+            alpha = 0.38f
             setOnClickListener {
                 val payload = transferQr ?: return@setOnClickListener
                 val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clipboard.setPrimaryClip(ClipData.newPlainText("AIRNOTE transfer", payload))
             }
         }
-        root.addView(copyTransferButton)
+        copyTransferButton.visibility = android.view.View.GONE
 
-        setContentView(ScrollView(this).apply { addView(root) })
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
+            addView(root)
+        }
+        setContentView(
+            AirnoteBottomNav.attach(
+                this,
+                scroll,
+                AirnoteBottomNav.Tab.SEND
+            )
+        )
         renderLocalNotes()
     }
 
@@ -149,10 +180,10 @@ class Gate04SenderActivity : AppCompatActivity() {
             return
         }
 
-        notes.forEach { note ->
-            localNotesContainer.addView(Button(this).apply {
-                text = note.amountUsdc.toString() + " USDC • " +
-                    if (note.state == LocalAirnoteState.HANDOFF_AUTHORIZED) "HANDOFF AUTHORIZED" else "READY OFFLINE"
+        notes.forEachIndexed { index, note ->
+            val row = AirnoteUi.card(this, 12).apply {
+                isClickable = true
+                isFocusable = true
                 setOnClickListener {
                     runCatching {
                         val certificateJson = requireNotNull(note.certificateJson) {
@@ -161,7 +192,34 @@ class Gate04SenderActivity : AppCompatActivity() {
                         loadCertifiedAirnote(Gate04CertificateJson.parse(certificateJson))
                     }.onFailure(::renderImportFailure)
                 }
+            }
+            val line = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            line.addView(AirnoteUi.iconBubble(this, if (index % 2 == 0) "◉" else "▣", 38))
+            val copy = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(AirnoteUi.dp(this@Gate04SenderActivity, 10), 0, 0, 0)
+            }
+            copy.addView(AirnoteUi.title(this, note.amountUsdc.toString() + " USDC", 14.5f))
+            copy.addView(
+                AirnoteUi.body(
+                    this,
+                    if (note.state == LocalAirnoteState.HANDOFF_AUTHORIZED) "Handoff authorized" else "Ready Offline",
+                    11.5f
+                ),
+                AirnoteUi.marginParams(this, top = 2)
+            )
+            line.addView(copy, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            line.addView(AirnoteUi.body(this, "›", 24f).apply {
+                setTextColor(AirnoteUi.color(AirnoteUi.SLATE))
             })
+            row.addView(line)
+            localNotesContainer.addView(
+                row,
+                AirnoteUi.marginParams(this, bottom = if (index == notes.lastIndex) 0 else 6)
+            )
         }
     }
 
@@ -185,7 +243,9 @@ class Gate04SenderActivity : AppCompatActivity() {
             transferQr = lockedTransfer
             qr.setImageBitmap(QrSupport.render(lockedTransfer))
             scanRequestButton.isEnabled = false
+            scanRequestButton.alpha = 0.38f
             copyTransferButton.isEnabled = true
+            copyTransferButton.alpha = 1f
             phase.text = "SCAN 2 OF 2  •  SHOW LOCKED PAYMENT QR"
             status.text = buildString {
                 appendLine("HANDOFF ALREADY AUTHORIZED")
@@ -201,7 +261,9 @@ class Gate04SenderActivity : AppCompatActivity() {
             transferQr = null
             qr.setImageDrawable(null)
             scanRequestButton.isEnabled = true
+            scanRequestButton.alpha = 1f
             copyTransferButton.isEnabled = false
+            copyTransferButton.alpha = 0.38f
             phase.text = "SCAN 1 OF 2  •  SCAN RECEIVER REQUEST"
             status.text = buildString {
                 appendLine("AIRNOTE READY OFFLINE  ✓")
@@ -221,7 +283,9 @@ class Gate04SenderActivity : AppCompatActivity() {
         transferQr = null
         qr.setImageDrawable(null)
         scanRequestButton.isEnabled = false
+        scanRequestButton.alpha = 0.38f
         copyTransferButton.isEnabled = false
+        copyTransferButton.alpha = 0.38f
         phase.text = "CHOOSE A READY AIRNOTE"
         status.text = "AIRNOTE LOAD FAILED\n" + (error.message ?: error::class.java.simpleName)
     }
@@ -269,7 +333,9 @@ class Gate04SenderActivity : AppCompatActivity() {
             transferQr = encoded
             qr.setImageBitmap(QrSupport.render(encoded))
             copyTransferButton.isEnabled = true
+            copyTransferButton.alpha = 1f
             scanRequestButton.isEnabled = false
+            scanRequestButton.alpha = 0.38f
             phase.text = "SCAN 2 OF 2  •  SHOW PAYMENT QR"
             status.text = buildString {
                 appendLine("SIGNED PAYMENT READY")

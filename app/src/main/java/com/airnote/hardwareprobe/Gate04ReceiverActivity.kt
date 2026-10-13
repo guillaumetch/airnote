@@ -58,72 +58,109 @@ class Gate04ReceiverActivity : AppCompatActivity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(32, 32, 32, 48)
+            setPadding(AirnoteUi.dp(this@Gate04ReceiverActivity, 24), AirnoteUi.dp(this@Gate04ReceiverActivity, 28), AirnoteUi.dp(this@Gate04ReceiverActivity, 24), AirnoteUi.dp(this@Gate04ReceiverActivity, 48))
+            setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
         }
-        root.addView(TextView(this).apply {
-            text = "RECEIVE AIRNOTE"
-            textSize = 28f
-            gravity = Gravity.CENTER_HORIZONTAL
-        })
-        root.addView(TextView(this).apply {
-            text = "Two scans. No internet required."
-            textSize = 16f
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, 4, 0, 24)
-        })
-
-        phase = TextView(this).apply {
-            text = "SCAN 1 OF 2  •  CREATE YOUR REQUEST"
-            textSize = 18f
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, 8, 0, 20)
+        AirnoteUi.applyTopInset(root)
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
-        root.addView(phase)
+        top.addView(AirnoteUi.body(this, "‹", 28f).apply {
+            setTextColor(AirnoteUi.color(AirnoteUi.AIR_DEEP))
+            setPadding(0, 0, AirnoteUi.dp(this@Gate04ReceiverActivity, 8), 0)
+            setOnClickListener { finish() }
+        })
+        top.addView(AirnoteUi.title(this, "Receive", 26f))
+        root.addView(top)
+        root.addView(AirnoteUi.body(this, "Create your request, then scan the signed payment.", 13f), AirnoteUi.marginParams(this, top = 3, bottom = 7))
+        root.addView(AirnoteUi.networkBadge(this), AirnoteUi.marginParams(this, bottom = 4))
+        root.addView(
+            AirnoteUi.body(
+                this,
+                "AIRNOTE beta settles on Devnet. Use a wallet you can switch to Solana Devnet.",
+                11.5f
+            ),
+            AirnoteUi.marginParams(this, bottom = 12)
+        )
 
-        walletStatus = TextView(this).apply {
-            textSize = 15f
+        val steps = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        steps.addView(AirnoteUi.statusPill(this, "1  Show request", false), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        steps.addView(AirnoteUi.body(this, "  →  ", 13f))
+        steps.addView(AirnoteUi.statusPill(this, "2  Scan payment", false), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        root.addView(steps, AirnoteUi.marginParams(this, bottom = 14))
+
+        val receiveCard = AirnoteUi.glassCard(this, 16)
+        val receiveHeader = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        receiveHeader.addView(AirnoteUi.iconBubble(this, "⌗", 42))
+        val receiveCopy = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        receiveCopy.addView(AirnoteUi.title(this, "Receive", 17f))
+        receiveCopy.addView(AirnoteUi.body(this, "Show your code to receive USDC.", 11.5f))
+        receiveHeader.addView(receiveCopy, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+            marginStart = AirnoteUi.dp(this@Gate04ReceiverActivity, 10)
+        })
+        receiveCard.addView(receiveHeader)
+
+        phase = AirnoteUi.statusPill(this, "Scan 1 of 2 · Create your request", false)
+        receiveCard.addView(phase, AirnoteUi.marginParams(this, top = 12, bottom = 12))
+
+        walletStatus = AirnoteUi.body(this, "", 13f).apply {
             setTextIsSelectable(true)
-            setPadding(0, 4, 0, 12)
+            setPadding(AirnoteUi.dp(this@Gate04ReceiverActivity, 16), AirnoteUi.dp(this@Gate04ReceiverActivity, 16), AirnoteUi.dp(this@Gate04ReceiverActivity, 16), AirnoteUi.dp(this@Gate04ReceiverActivity, 16))
+            background = AirnoteUi.rounded(this@Gate04ReceiverActivity, "#F8FCFF", 20, "#DDE7F0")
         }
-        root.addView(walletStatus)
+        receiveCard.addView(walletStatus)
+        receiveCard.addView(
+            AirnoteUi.devnetNotice(
+                this,
+                "The wallet you bind will receive AIRNOTE settlement on Solana Devnet."
+            ),
+            AirnoteUi.marginParams(this, top = 8)
+        )
 
-        selectWalletButton = Button(this).apply {
-            text = "SELECT RECEIVE WALLET"
+        selectWalletButton = AirnoteUi.secondaryButton(this, "Select receive wallet").apply {
             setOnClickListener { connectReceiveWallet() }
         }
-        root.addView(selectWalletButton)
+        receiveCard.addView(selectWalletButton, AirnoteUi.marginParams(this, top = 8))
 
-        requestButton = Button(this).apply {
-            text = "SHOW REQUEST QR — 1 OF 2"
+        requestButton = AirnoteUi.primaryButton(this, "Show request QR · 1 of 2").apply {
             isEnabled = false
+            alpha = 0.38f
             setOnClickListener { generateRequest() }
         }
-        root.addView(requestButton)
+        receiveCard.addView(requestButton, AirnoteUi.marginParams(this, top = 8))
 
         qr = ImageView(this).apply {
             adjustViewBounds = true
             setPadding(0, 24, 0, 24)
         }
-        root.addView(qr)
+        receiveCard.addView(qr)
 
-        scanTransferButton = Button(this).apply {
-            text = "SCAN PAYMENT — 2 OF 2"
+        scanTransferButton = AirnoteUi.primaryButton(this, "Scan payment · 2 of 2").apply {
             isEnabled = false
+            alpha = 0.38f
             setOnClickListener {
                 transferScanner.launch(
                     ScanOptions()
                         .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
                         .setPrompt("Scan 2 of 2 • signed Airnote payment")
                         .setBeepEnabled(false)
-                        .setOrientationLocked(false)
+                        .setCaptureActivity(PortraitCaptureActivity::class.java)
+                        .setOrientationLocked(true)
                 )
             }
         }
-        root.addView(scanTransferButton)
+        receiveCard.addView(scanTransferButton, AirnoteUi.marginParams(this, top = 8))
 
-        openPaymentButton = Button(this).apply {
-            text = "OPEN PAYMENT / SETTLE"
+        openPaymentButton = AirnoteUi.primaryButton(this, "Open payment / Settle").apply {
             isEnabled = false
+            alpha = 0.38f
             setOnClickListener {
                 val id = acceptedPaymentId ?: return@setOnClickListener
                 startActivity(
@@ -132,32 +169,43 @@ class Gate04ReceiverActivity : AppCompatActivity() {
                 )
             }
         }
-        root.addView(openPaymentButton)
+        receiveCard.addView(openPaymentButton, AirnoteUi.marginParams(this, top = 8))
 
-        root.addView(Button(this).apply {
-            text = "VIEW ALL ACTIVITY"
+        receiveCard.addView(AirnoteUi.compactButton(this, "View activity").apply {
             setOnClickListener { startActivity(Intent(this@Gate04ReceiverActivity, AirnoteHistoryActivity::class.java)) }
         })
 
-        status = TextView(this).apply {
-            textSize = 15f
+        status = AirnoteUi.body(this, "", 14f).apply {
             setTextIsSelectable(true)
-            setPadding(0, 12, 0, 12)
+            setPadding(AirnoteUi.dp(this@Gate04ReceiverActivity, 16), AirnoteUi.dp(this@Gate04ReceiverActivity, 16), AirnoteUi.dp(this@Gate04ReceiverActivity, 16), AirnoteUi.dp(this@Gate04ReceiverActivity, 16))
+            background = AirnoteUi.rounded(this@Gate04ReceiverActivity, AirnoteUi.CLOUD, 20, AirnoteUi.MIST)
         }
-        root.addView(status)
+        receiveCard.addView(status, AirnoteUi.marginParams(this, top = 8))
+        root.addView(receiveCard)
 
-        copyAcceptedButton = Button(this).apply {
-            text = "TECHNICAL • COPY SETTLEMENT PAYLOAD"
+        copyAcceptedButton = AirnoteUi.compactButton(this, "Technical · Copy settlement payload").apply {
             isEnabled = false
+            alpha = 0.38f
             setOnClickListener {
                 val payload = acceptedPayload ?: return@setOnClickListener
                 val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clipboard.setPrimaryClip(ClipData.newPlainText("AIRNOTE accepted transfer", payload))
             }
         }
-        root.addView(copyAcceptedButton)
+        copyAcceptedButton.visibility = android.view.View.GONE
 
-        setContentView(ScrollView(this).apply { addView(root) })
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(AirnoteUi.color(AirnoteUi.SKY_50))
+            addView(root)
+        }
+        setContentView(
+            AirnoteBottomNav.attach(
+                this,
+                scroll,
+                AirnoteBottomNav.Tab.RECEIVE
+            )
+        )
         restoreActiveRequest()
         renderWalletBinding()
     }
@@ -216,6 +264,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
 
             selectWalletButton.isEnabled = true
             requestButton.isEnabled = walletBindingStore.current() != null
+            requestButton.alpha = if (requestButton.isEnabled) 1f else 0.38f
         }
     }
 
@@ -231,6 +280,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
 
         selectWalletButton.isEnabled = controls.selectWalletEnabled
         requestButton.isEnabled = controls.requestEnabled
+        requestButton.alpha = if (controls.requestEnabled) 1f else 0.38f
         requestButton.text = controls.requestLabel
 
         if (binding == null) {
@@ -246,13 +296,13 @@ class Gate04ReceiverActivity : AppCompatActivity() {
         } else {
             walletStatus.text = buildString {
                 appendLine("OFFLINE RECEIVE READY  ✓")
-                appendLine(binding.publicKeyBase58)
+                appendLine(binding.publicKeyBase58.take(6) + "…" + binding.publicKeyBase58.takeLast(6))
                 appendLine()
-                append("The recipient public key is cached locally. Scan 1 can be created without reconnecting the wallet.")
+                append("Wallet binding is cached locally. You can disconnect and complete both scans offline.")
             }
             selectWalletButton.text = "CHANGE RECEIVE WALLET"
             if (!handoffActive && !paymentAccepted) {
-                status.text = "Wallet binding ready. You can disconnect now and start the two-scan handoff."
+                status.text = "Ready for Scan 1. No internet is required for the handoff. Settlement uses Solana Devnet."
             }
         }
     }
@@ -281,6 +331,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             requestButton.isEnabled = false
             qr.setImageBitmap(QrSupport.render(encoded))
             scanTransferButton.isEnabled = true
+            scanTransferButton.alpha = 1f
             runCatching {
                 AirnoteProofJournal(this).record(
                     type = AirnoteProofEventType.RECEIVER_REQUEST_QR_READY,
@@ -304,6 +355,7 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             currentRequest = null
             handoffSessionId = null
             scanTransferButton.isEnabled = false
+            scanTransferButton.alpha = 0.38f
             selectWalletButton.isEnabled = true
             requestButton.isEnabled = walletBindingStore.current() != null
             phase.text = "SCAN 1 OF 2  •  CREATE YOUR REQUEST"
@@ -395,8 +447,11 @@ class Gate04ReceiverActivity : AppCompatActivity() {
             acceptedPayload = scanned.trim()
             acceptedPaymentId = commitmentHex
             copyAcceptedButton.isEnabled = true
+            copyAcceptedButton.alpha = 1f
             openPaymentButton.isEnabled = true
+            openPaymentButton.alpha = 1f
             scanTransferButton.isEnabled = false
+            scanTransferButton.alpha = 0.38f
             qr.setImageDrawable(null)
             phase.text = "OFFLINE HANDOFF COMPLETE  ✓"
             renderWalletBinding()

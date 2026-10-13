@@ -7,9 +7,18 @@
 
     <application
         android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="AIRNOTE"
         android:supportsRtl="true"
         android:theme="@style/Theme.AirnoteProbe">
+        <activity
+            android:name=".PortraitCaptureActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
+            android:name=".CreateFundActivity"
+            android:exported="false" />
         <activity
             android:name=".AirnoteProofActivity"
             android:exported="false" />

@@ -10,7 +10,8 @@ enum class LocalAirnoteState {
     FUNDING,
     FUNDED_FINALIZED,
     READY_OFFLINE,
-    HANDOFF_AUTHORIZED
+    HANDOFF_AUTHORIZED,
+    REFUNDED
 }
 
 data class LocalAirnote(
@@ -28,6 +29,7 @@ data class LocalAirnote(
     val noteAccount: String? = null,
     val vaultAccount: String? = null,
     val certificateJson: String? = null,
+    val skrAccessWalletBase58: String? = null,
     val lastError: String? = null
 ) {
     val amountBaseUnits: Long get() = amountUsdc * 1_000_000L
@@ -39,7 +41,8 @@ class LocalAirnoteStore(context: Context) {
     fun create(
         material: NoteOwnerKeyManager.Material,
         amountUsdc: Int,
-        lifetimeSeconds: Long
+        lifetimeSeconds: Long,
+        skrAccessWalletBase58: String? = null
     ): LocalAirnote {
         require(amountUsdc in setOf(1, 5, 10)) { "unsupported AIRNOTE denomination" }
         val note = LocalAirnote(
@@ -50,7 +53,8 @@ class LocalAirnoteStore(context: Context) {
             amountUsdc = amountUsdc,
             lifetimeSeconds = lifetimeSeconds,
             createdAtUnixSeconds = System.currentTimeMillis() / 1000L,
-            state = LocalAirnoteState.PREPARED
+            state = LocalAirnoteState.PREPARED,
+            skrAccessWalletBase58 = skrAccessWalletBase58
         )
         put(note)
         return note
@@ -66,8 +70,16 @@ class LocalAirnoteStore(context: Context) {
             .mapNotNull { (it as? String)?.let(::decode) }
             .sortedByDescending { it.createdAtUnixSeconds }
 
-    fun sendable(): List<LocalAirnote> =
-        all().filter { it.state in setOf(LocalAirnoteState.READY_OFFLINE, LocalAirnoteState.HANDOFF_AUTHORIZED) }
+    fun sendable(nowUnixSeconds: Long = System.currentTimeMillis() / 1000L): List<LocalAirnote> =
+        all().filter {
+            it.state in setOf(LocalAirnoteState.READY_OFFLINE, LocalAirnoteState.HANDOFF_AUTHORIZED) &&
+                !it.isExpired(nowUnixSeconds)
+        }
+
+    fun expiredUnsent(nowUnixSeconds: Long = System.currentTimeMillis() / 1000L): List<LocalAirnote> =
+        all().filter {
+            it.state == LocalAirnoteState.READY_OFFLINE && it.isExpired(nowUnixSeconds)
+        }
 
     fun latestIncomplete(): LocalAirnote? =
         all().firstOrNull { it.state !in setOf(LocalAirnoteState.READY_OFFLINE, LocalAirnoteState.HANDOFF_AUTHORIZED) }
@@ -111,6 +123,9 @@ class LocalAirnoteStore(context: Context) {
                 lastError = null
             )
         }
+
+    fun markRefunded(noteIdHex: String): LocalAirnote =
+        mutate(noteIdHex) { it.copy(state = LocalAirnoteState.REFUNDED, lastError = null) }
 
     fun markHandoffAuthorized(noteIdHex: String): LocalAirnote =
         mutate(noteIdHex) {
@@ -194,6 +209,7 @@ class LocalAirnoteStore(context: Context) {
         .putNullable("noteAccount", note.noteAccount)
         .putNullable("vaultAccount", note.vaultAccount)
         .putNullable("certificateJson", note.certificateJson)
+        .putNullable("skrAccessWalletBase58", note.skrAccessWalletBase58)
         .putNullable("lastError", note.lastError)
         .toString()
 
@@ -214,9 +230,17 @@ class LocalAirnoteStore(context: Context) {
             noteAccount = json.optNullableString("noteAccount"),
             vaultAccount = json.optNullableString("vaultAccount"),
             certificateJson = json.optNullableString("certificateJson"),
+            skrAccessWalletBase58 = json.optNullableString("skrAccessWalletBase58"),
             lastError = json.optNullableString("lastError")
         )
     }.getOrNull()
+
+    private fun LocalAirnote.isExpired(nowUnixSeconds: Long): Boolean {
+        val certificate = certificateJson ?: return false
+        return runCatching {
+            Gate04CertificateJson.parse(certificate).mintCore.expiresAtUnixSeconds <= nowUnixSeconds
+        }.getOrDefault(false)
+    }
 
     private fun parseFields(text: String): Map<String, String> =
         text.lineSequence()
