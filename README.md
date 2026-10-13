@@ -8,6 +8,26 @@ Prepare a pre-funded Airnote while connected, transfer it device-to-device with 
 
 > **Prepare online. Pay offline. Settle on Solana.**
 
+## What AIRNOTE does
+
+AIRNOTE lets two people make a USDC payment **even when there is no internet connection at the moment of payment**.
+
+The sender first prepares and funds an Airnote while online. That Airnote is a pre-funded, single-use payment credential backed by USDC on Solana.
+
+Later, if connectivity is unavailable:
+
+1. the receiver opens AIRNOTE and generates a payment request QR;
+2. the sender scans that request and signs the transfer on-device using Seeker's hardware-backed P-256 key;
+3. the sender shows a signed payment QR;
+4. the receiver scans it and verifies the payment **fully offline**;
+5. when internet access returns, the receiver settles the Airnote on Solana and receives the USDC.
+
+In practical terms, AIRNOTE is designed for situations where both people have their phones but connectivity is weak, unavailable, congested, or temporarily lost.
+
+It is **not** an offline wallet that spends arbitrary wallet balances. The value is prepared in advance, which keeps the offline handoff bounded and verifiable.
+
+**Example:** prepare 5 USDC before leaving connectivity, pay someone later with two QR scans while both devices are offline, then let the receiver settle that payment on Solana once connectivity returns.
+
 AIRNOTE lets you turn part of your USDC balance into a **pre-funded mobile payment note** before you lose connectivity. That note can then be handed to another person **without internet access** using a two-QR exchange between phones. The receiver verifies the payment locally, keeps the signed Airnote on their device, and settles it for USDC on Solana once connectivity returns.
 
 In practice, AIRNOTE is useful anywhere mobile data is unreliable or unavailable: events, travel, crowded venues, remote areas, temporary outages, or any situation where both people still have their phones but the network cannot be trusted.
